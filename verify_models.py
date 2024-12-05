@@ -19,10 +19,10 @@ def load_config(config_file):
 def verify_file(dzn_tool, models_dir, file_path):
     """Verify a single .dzn file."""
     try:
-        subprocess.run(
-            ["cmd.exe", "/c", dzn_tool, "verify", "-I", models_dir, file_path],
-            check=True
-        )
+        command = [dzn_tool, "verify", "-I", models_dir, file_path]
+        if os.name == "nt":  # On Windows, run through cmd.exe
+            command = ["cmd.exe", "/c"] + command
+        subprocess.run(command, check=True)
         print(f"Verified: {file_path}")
     except subprocess.CalledProcessError:
         model_name = os.path.basename(file_path)
@@ -34,7 +34,7 @@ def main():
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     config_file = os.path.join(script_dir, "config.json")  # JSON configuration file
-    models_dir = os.path.join(script_dir, "models")
+    models_dir = os.path.join(script_dir, "Models")
     
     # Load configuration
     config = load_config(config_file)
@@ -43,8 +43,8 @@ def main():
         print("Error: 'dznPath' not found in configuration file.")
         sys.exit(1)
     
-    # Full path to dzn.cmd
-    dzn_tool = os.path.join(dzn_path, "dzn.cmd")
+    # Full path to the Dezyne tool
+    dzn_tool = os.path.join(dzn_path, "dzn.cmd" if os.name == "nt" else "dzn")
 
     # Check if the dzn tool exists
     if not os.path.isfile(dzn_tool):
@@ -81,6 +81,8 @@ def main():
             except Exception as e:
                 # Exit immediately for any error
                 sys.exit(1)
+
+    print("=== Verification Completed Successfully ===")
 
 
 if __name__ == "__main__":

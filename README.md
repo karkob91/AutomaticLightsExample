@@ -24,7 +24,7 @@ Welcome to the **AutomaticLightsExample**! This guide provides instructions for 
 - **Dezyne Tool**:
   - Download from [Verum.com](https://www.verum.com/download) and extract it to a suitable location.
   - It is recommended to use:
-    - The home directory on Linux (e.g., `~/dezyne-2.18.3`).
+    - The home directory on Linux (e.g., `home/username/dezyne-2.18.3`).
     - A path like `C:/dezyne-2.18.3` on Windows.
 
 ### Compiler

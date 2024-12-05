@@ -22,14 +22,18 @@ fi
 echo
 echo "=== Verifying Models ==="
 
-# Process all .dzn files in the models directory
-find models -name "*.dzn" | while read -r dzn_file; do
-    echo "Verifying: $(basename "$dzn_file")"
-    if ! "$DZN_PATH/dzn" verify -I models "$dzn_file"; then
-        echo "Error verifying $(basename "$dzn_file")"
+# Get the number of available processors
+NUM_PROCS=$(nproc)
+echo "Using $NUM_PROCS threads for verification."
+
+# Process all .dzn files in the Models directory concurrently
+find Models -name "*.dzn" | xargs -n 1 -P "$NUM_PROCS" -I {} bash -c '
+    echo "Verifying: $(basename "{}")"
+    if ! "'$DZN_PATH'"/dzn verify -I Models "{}"; then
+        echo "Error verifying $(basename "{}")"
         exit 1
     fi
-done
+'
 
 # Print completion message
 echo
