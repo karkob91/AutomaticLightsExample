@@ -1,0 +1,22 @@
+interface IFrontCamera {
+    out void CarDetected();
+    out void CarPassed();
+    enum State {Detected, NotDetected};
+
+    behavior {
+        State state = State.NotDetected;
+
+        on inevitable: {
+            State state = State.Detected;
+            CarDetected;
+        }
+        on inevitable: {
+            State state = State.NotDetected;
+            CarPassed;
+        }
+    }
+}
+
+component FrontCameraComponent {
+    provides IFrontCamera frontCamera;
+}

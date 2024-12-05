@@ -1,0 +1,126 @@
+import LightSensor.dzn;
+import FrontCamera.dzn;
+import LightShifter.dzn;
+import TimerAutomaticLight.dzn;
+
+
+component ModeSelector {
+    provides ILightShifter lightShifter;
+    requires IFrontCamera frontCamera;  
+    requires ILightSensor lightSensor;
+    requires ITimerAutomaticLight timerAutomaticLight;
+
+    behavior {
+        bool highBeamsOn = false;
+        bool lowLight = false;
+        bool timerActive = false;
+        enum ControlMode {Automatic, Manual};
+        ControlMode mode = ControlMode.Manual;
+
+        [mode.Manual] {
+
+            [!timerActive] {
+                on lightSensor.LowLight(): {
+                    timerActive = true;
+                    timerAutomaticLight.Create();
+                }
+                on lightSensor.HighLight(): {}
+                on frontCamera.CarDetected(): {}
+                on frontCamera.CarPassed(): {}
+            }
+            [timerActive] {
+                on timerAutomaticLight.Timeout(): {
+                    mode = ControlMode.Automatic;
+                    highBeamsOn = true;
+                    lowLight = true;
+                }
+                on lightSensor.HighLight(): {
+                    timerAutomaticLight.Cancel();
+                    timerActive = false;
+                }
+                on frontCamera.CarDetected(): {
+                    timerAutomaticLight.Cancel();
+                }
+                on frontCamera.CarPassed(): {}
+                on lightSensor.LowLight(): {}
+            }
+
+            [highBeamsOn] {
+                on lightShifter.Toggle(): {
+                    timerAutomaticLight.Cancel();
+                    highBeamsOn = false;
+                    timerAutomaticLight.Cancel();
+                }
+            }
+            [!highBeamsOn] {
+                on lightShifter.Toggle(): {
+                    timerAutomaticLight.Cancel();
+                    highBeamsOn = true;
+                    timerAutomaticLight.Cancel();
+                    
+                }
+            }
+        }
+        [mode.Automatic] {
+            [highBeamsOn] {
+                on lightSensor.HighLight(): timerAutomaticLight.Create();
+                on lightSensor.LowLight(): timerAutomaticLight.Cancel();
+                on frontCamera.CarDetected(): highBeamsOn = false;
+                on frontCamera.CarPassed(): {}
+                on lightShifter.Toggle(): {
+                    highBeamsOn = false;
+                    timerActive = false;
+                    mode = ControlMode.Manual;
+                    timerAutomaticLight.Cancel();
+                }
+            }
+
+            [!highBeamsOn] {
+                on lightSensor.HighLight(): timerAutomaticLight.Cancel();
+                on lightSensor.LowLight(): timerAutomaticLight.Create();
+                on frontCamera.CarDetected(): {}
+                on frontCamera.CarPassed(): highBeamsOn = true;
+                on lightShifter.Toggle(): {
+                    highBeamsOn = true;
+                    timerActive = false;
+                    mode = ControlMode.Manual;
+                    timerAutomaticLight.Cancel();
+                }
+            }
+            
+
+            [lowLight] {
+                on timerAutomaticLight.Timeout(): {
+                    lowLight = !lowLight;
+                    highBeamsOn = !highBeamsOn;
+                }
+            } 
+            [!lowLight] {
+                on timerAutomaticLight.Timeout(): {
+                    lowLight = !lowLight;
+                    highBeamsOn = !highBeamsOn;
+                }
+            } 
+
+            
+        }
+    }
+}
+
+component System {
+    provides ILightShifter lightShifter;
+
+    system {
+        ModeSelector modeSelector;
+        FrontCameraComponent frontCamera;
+        LightSensorComponent lightSensor;
+        TimerAutomaticLightComponent timer;
+        
+        lightShifter <=> modeSelector.lightShifter;
+        lightSensor.lightSensor <=> modeSelector.lightSensor;
+
+        modeSelector.frontCamera <=> frontCamera.frontCamera;
+        
+        modeSelector.timerAutomaticLight <=> timer.api;
+    }
+}

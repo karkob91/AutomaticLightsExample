@@ -1,0 +1,7 @@
+interface ILightShifter {
+    in void Toggle();
+
+    behavior {
+        on Toggle: {}
+    }
+}

@@ -1,0 +1,153 @@
+interface ILightShifter {
+    in void Toggle();
+
+    behavior {
+        on Toggle: {}
+    }
+}
+
+interface IFrontCamera {
+    in void CarDetected();
+    in void CarPassed();
+    enum State {Detected, NotDetected};
+
+    behavior {
+        State state = State.NotDetected;
+        [state.Detected]
+            on CarPassed: {state = State.NotDetected;}
+        [state.NotDetected]
+            on CarDetected: {state = State.Detected;}
+    }
+}
+
+interface ILightSensor {
+    in void LowLight();
+    in void HighLight();
+    enum State {Low, High};
+
+    behavior {
+        State state = State.High;
+        [state.High]
+            on LowLight: {state = State.Low;}
+        [state.Low]
+            on HighLight: {state = State.High;}
+    }
+}
+
+interface IHighBeamsRelay {
+    in void TurnOn();
+    in void TurnOff();
+    enum State {On, Off};
+
+    behavior {
+        State state = State.Off;
+        [state.Off] 
+            on TurnOn: state = State.On;
+        [state.On]
+            on TurnOff: state = State.Off;
+    }
+}
+
+interface ITimerAutomaticLight
+{
+  in void Set();
+  in void Cancel();
+  out void Timeout();
+  enum State {Idle, Active};
+
+  behaviour
+  {
+    State state = State.Idle;
+
+    on Set: state = State.Active;
+    on Cancel: state = State.Idle;
+    [state.Active] {
+        on inevitable: {
+            Timeout;
+            state = State.Idle; 
+        }
+    }
+  }
+}
+
+interface Req1 {
+    in void Req1();
+    behavior {
+        on Req1: {}
+    }
+}
+
+component ModeSelector {
+    provides ILightShifter lightShifter;
+    provides IFrontCamera frontCamera;  
+    provides ILightSensor lightSensor;
+    requires ITimerAutomaticLight timerAutomaticLight;
+    requires IHighBeamsRelay highBeamsRelay;
+    provides Req1 req1;
+
+    behavior {
+        enum ControlMode {Automatic, Manual};
+        ControlMode mode = ControlMode.Manual;
+
+        void ToggleLights() {
+            if (highBeamsRelay.state.Off) 
+                highBeamsRelay.TurnOn();
+            else
+                highBeamsRelay.TurnOff();
+        }
+
+
+        // If system is in the automatic mode and car is detected in front, high beams should always be turned off 
+        on req1.Req1(): {
+            if (mode.Automatic && frontCamera.state.Detected && highBeamsRelay.state.On) {
+                illegal;
+            }
+                
+        }
+
+        [mode.Manual] {
+            [timerAutomaticLight.state.Active] {
+                on lightSensor.HighLight(), frontCamera.CarDetected():
+                    timerAutomaticLight.Cancel();
+            }
+            [timerAutomaticLight.state.Idle] {
+                on lightSensor.LowLight(): timerAutomaticLight.Set();
+                on lightSensor.HighLight(), frontCamera.CarDetected(): {}
+            }
+            on timerAutomaticLight.Timeout(): {
+                if (highBeamsRelay.state.Off && frontCamera.state.NotDetected) 
+                    highBeamsRelay.TurnOn();
+                if (highBeamsRelay.state.On && frontCamera.state.NotDetected) 
+                    highBeamsRelay.TurnOff();
+                mode = ControlMode.Automatic;
+                 
+            }
+            on lightShifter.Toggle(): {
+                ToggleLights();
+                if (timerAutomaticLight.state.Active)
+                    timerAutomaticLight.Cancel();
+            }
+            on frontCamera.CarPassed(): {}
+        }
+        [mode.Automatic] {
+            [highBeamsRelay.state.On] {
+                on lightSensor.HighLight(): timerAutomaticLight.Set();
+                on lightSensor.LowLight(): timerAutomaticLight.Cancel();
+                on frontCamera.CarDetected(): highBeamsRelay.TurnOff();
+                on frontCamera.CarPassed(): {}
+            }
+            [highBeamsRelay.state.Off] {
+                on lightSensor.HighLight(), frontCamera.CarDetected(): timerAutomaticLight.Cancel();
+                on lightSensor.LowLight(): timerAutomaticLight.Set();
+                on frontCamera.CarPassed(): highBeamsRelay.TurnOn();
+            }
+            on lightShifter.Toggle(): {
+                mode = ControlMode.Manual;
+                ToggleLights();
+                timerAutomaticLight.Cancel();
+            }
+            on timerAutomaticLight.Timeout():
+                ToggleLights();
+        }
+    }
+}

@@ -1,0 +1,21 @@
+interface ILightSensor {
+    out void LowLight();
+    out void HighLight();
+    enum State {Low, High};
+
+    behavior {
+        State state = State.High;
+        on inevitable: {
+            state = State.High;
+            LowLight;
+        }
+        on inevitable: {
+            state = State.Low;
+            HighLight;
+        }
+    }
+}
+
+component LightSensorComponent {
+    provides ILightSensor lightSensor;
+}
