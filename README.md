@@ -12,7 +12,7 @@
 ---
 
 ## Introduction
-Welcome to the **AutomaticLightsProject**! This guide provides instructions for setting up and using the verification and build scripts on both Windows and Linux platforms. The project includes Python, `.bat`, and `.sh` scripts to streamline verification and building processes for Dezyne models.
+Welcome to the **AutomaticLightsExample**! This guide provides instructions for setting up and using the verification and build scripts on both Windows and Linux platforms. The project includes Python, `.bat`, and `.sh` scripts to streamline verification and building processes for Dezyne models.
 
 ---
 
@@ -38,13 +38,7 @@ Welcome to the **AutomaticLightsProject**! This guide provides instructions for 
 
 ## Setup
 
-1. **Clone or download the repository**:
-    ```bash
-    git clone https://github.com/yourusername/AutomaticLightsProject.git
-    cd AutomaticLightsProject
-    ```
-
-2. **Configure the `config.json` file**:
+1. **Configure the `config.json` file**:
     The project uses a JSON configuration file to specify key paths required for verification and building processes. Below is an example configuration:
 
     ```json
@@ -176,4 +170,4 @@ Welcome to the **AutomaticLightsProject**! This guide provides instructions for 
 ---
 
 ## Contact
-For additional help or to report issues, please open an issue on the project's GitHub repository or contact the project maintainer.
+For additional help or to report issues, please contact the project maintainer: karol.kobiela@verum.com
