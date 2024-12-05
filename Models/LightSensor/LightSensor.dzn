@@ -16,6 +16,3 @@ interface ILightSensor {
     }
 }
 
-component LightSensorComponent {
-    provides ILightSensor lightSensor;
-}

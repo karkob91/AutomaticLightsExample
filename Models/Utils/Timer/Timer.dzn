@@ -1,0 +1,24 @@
+import ../ExternalTypes.dzn;
+
+interface Timer {
+    in void Create(int ms);
+    in void Cancel();
+
+    out void Timeout();
+
+    behavior {
+        bool armed = false;
+
+        [!armed]
+        {
+            on Create: armed = true;
+            on Cancel: {}
+        }
+
+        [armed]
+        {
+            on Cancel: armed = false;
+            on inevitable: { armed = false; Timeout; }
+        }
+    }
+}

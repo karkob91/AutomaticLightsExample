@@ -1,0 +1,13 @@
+interface IHighBeamsRelay {
+    in void TurnOn();
+    in void TurnOff();
+    enum State {On, Off};
+
+    behavior {
+        State state = State.Off;
+        [state.Off] 
+            on TurnOn: state = State.On;
+        [state.On]
+            on TurnOff: state = State.Off;
+    }
+}

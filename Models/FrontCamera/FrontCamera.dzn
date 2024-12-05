@@ -7,16 +7,13 @@ interface IFrontCamera {
         State state = State.NotDetected;
 
         on inevitable: {
-            State state = State.Detected;
+            state = State.Detected;
             CarDetected;
         }
         on inevitable: {
-            State state = State.NotDetected;
+            state = State.NotDetected;
             CarPassed;
         }
     }
 }
 
-component FrontCameraComponent {
-    provides IFrontCamera frontCamera;
-}

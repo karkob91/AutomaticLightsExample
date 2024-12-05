@@ -1,0 +1,26 @@
+import ExternalTypes.dzn;
+
+interface IModule {
+    in Result Initialize();
+    in void Terminate();
+
+    behavior {
+        bool x = true;
+        State state = State.Uninitialized;
+
+        [state.Uninitialized]
+        {
+            on Initialize:
+            {
+                [x] { reply(Result.Ok); state = State.Operational; }
+                [x] { reply(Result.Fail);}
+            }
+            on Terminate: {}
+        }
+
+        [state.Operational]
+        {
+            on Terminate: state = State.Uninitialized;
+        }
+    }
+}

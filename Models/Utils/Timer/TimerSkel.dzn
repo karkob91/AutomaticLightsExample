@@ -1,0 +1,5 @@
+import Timer.dzn;
+
+component TimerComponent {
+    provides Timer api;
+}

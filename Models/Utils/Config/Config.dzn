@@ -1,0 +1,16 @@
+import ../ExternalTypes.dzn;
+
+interface IConfig {
+    // "out" means that in the generated code the ms value will be passed as a refference
+    // current version of Dezyne (2.18.3) does not support extern type return value but 
+    // it will be supported in 2.19.0
+    in Result GetLightDelay(out int ms);
+
+    behavior {
+        on GetLightDelay: {
+            // Listing possible return values
+            [true] reply(Result.Ok);
+            [true] reply(Result.Fail);
+        }
+    }
+}

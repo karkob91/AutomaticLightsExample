@@ -1,0 +1,12 @@
+extern int $int$;
+extern String $std::string$;
+
+enum Result {
+    Ok,
+    Fail,
+};
+
+enum State {
+    Uninitialized,
+    Operational,
+};

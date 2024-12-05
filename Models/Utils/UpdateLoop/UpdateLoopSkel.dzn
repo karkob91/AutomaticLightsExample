@@ -1,0 +1,5 @@
+import UpdateLoop.dzn;
+
+component UpdateLoopComponent {
+    provides UpdateLoop api;
+}

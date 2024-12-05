@@ -1,0 +1,22 @@
+interface UpdateLoop {
+    in void Enable();
+    in void Disable();
+
+    out void Update();
+
+    behavior {
+        bool enabled = false;
+
+        [!enabled]
+        {
+            on Disable: {}
+            on Enable: enabled = true;
+        }
+
+        [enabled]
+        {
+            on Disable: enabled = false;
+            on inevitable: Update;
+        }
+    }
+}

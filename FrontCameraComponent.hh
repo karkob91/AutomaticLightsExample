@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FrontCamera.hh"
+#include "FrontCameraSkel.hh"
 
 struct FrontCameraComponent : skel::FrontCameraComponent
 {
