@@ -1,209 +1,93 @@
-import FrontCamera/FrontCamera.dzn;
-import FrontCamera/FrontCameraSkel.dzn;
-import LightSensor/LightSensor.dzn;
-import HighBeamsRelay/HighBeamsRelay.dzn;
-import LightShifter.dzn;
-import Utils/Timer/Timer.dzn;
-import Utils/Timer/TimerSkel.dzn;
-import Utils/Module.dzn;
-import Utils/Config/Config.dzn;
-import Utils/Config/ConfigSkel.dzn;
+interface ILightShifter {
+    in void Toogle();
 
-
-// Special interface that is triggered every time
-// to check if requirements conditions are met
-interface Req1 {
-    in void Req1();
     behavior {
-        on Req1: {}
+        on Toogle: {}
+    }
+
+}
+
+interface IHighBeamsRelay {
+    in bool TurnOn();
+    in bool TurnOff();
+    
+
+    behavior {
+        bool isTurnedOn = false;
+
+        [isTurnedOn] {
+            
+            on TurnOff: {
+                isTurnedOn = false;
+            }
+        }
+        [!isTurnedOn] {
+            on TurnOn: {
+                isTurnedOn = true;
+            }
+            
+        }
+    }
+
+}
+
+interface ILightSensor {
+    out void LowLight();
+    out void HighLight();
+    enum State {Low, High};
+
+    behavior {
+        State state = State.High;
+        [state.High] {
+            on inevitable: {
+                state = State.Low;
+                LowLight;
+            }
+        }
+        [state.Low] {
+            on inevitable: {
+                state = State.High;
+                HighLight;
+            }
+        }
     }
 }
+
+
 
 component ModeSelector {
     provides ILightShifter lightShifter;
-    provides IModule module;
-    provides Req1 req1;
-    requires IFrontCamera frontCamera;  
+    requires IHighBeamsRelay beamsRelay;
     requires ILightSensor lightSensor;
-    requires Timer lightsTimer;
-    requires IHighBeamsRelay highBeams;
-    requires IConfig config;
 
     behavior {
-        bool lowLight = false;
-        enum ControlMode {Automatic, Manual};
-        ControlMode mode = ControlMode.Manual;
-        // empty container for value
-        int timerDelayVal;
 
-        // Function definition
-        void ToggleHighBeams() {
-            if(highBeams.state.On) {
-                highBeams.TurnOff();
-            } 
+        void ToggleLights() {
+            if(beamsRelay.isTurnedOn)
+                beamsRelay.TurnOff();
             else {
-                highBeams.TurnOn();
+                beamsRelay.TurnOn();
             }
         }
-
-        //Requirement 1: If system is in the automatic mode and car is detected 
-        //               in front, high beams should always be turned off 
-        on req1.Req1(): {
-            if (mode.Automatic && frontCamera.state.Detected && highBeams.state.On) {
-                // UNCOMMENT illegal; TO TURN ON REQUIREMENT CHECK
-                // illegal;
+        [beamsRelay.isTurnedOn] {
+            on lightShifter.Toogle(): {
+                beamsRelay.TurnOff();
             }
-            // During verification, req1.Req1() is checked at the every interation,
-            // checking is there a state that violates this constraint
-            // To be removed before deployment
-        }
-
-
-        // "state" is a variable controled by Module interface, therefore there is no need
-        // to track this value inside of the ModeSelector component
-        [module.state.Uninitialized] {
-            on module.Initialize(): {
-                // pass timerDelayVal as a refference and fill in in the hand-written part of code
-                Result res = config.GetLightDelay(timerDelayVal);
-                reply(res);
-                // reply(res.Ok);
-                // if res == Ok, module state will change to Operational and system can operate in automatic mode
-            }
-
-            // If system is not properly initialized (failed to get "timerDelayVal" from config),
-            // system will only react to drivers manual shifting. 
-            // If system is correctly initialized, system will move to module.state.Operational and will
-            // be able to move between manual and automatic mode
-            on lightShifter.Toggle(): {
-                lightsTimer.Cancel();
-                ToggleHighBeams();
+            on lightSensor.HighLight(): {
+                beamsRelay.TurnOff();
             }
             on lightSensor.LowLight(): {}
+        }
+        [!beamsRelay.isTurnedOn] {
+            on lightShifter.Toogle(), lightSensor.LowLight(): {
+                beamsRelay.TurnOn();
+            }
             on lightSensor.HighLight(): {}
-            on frontCamera.CarDetected(): {}
-            on frontCamera.CarPassed(): {}
-
-            on module.Terminate(): {}
+            
 
         }
-        [module.state.Operational] {
-            [mode.Manual] {
-                [lightsTimer.armed == false] {
-                    on lightSensor.LowLight(): {
-                        if(highBeams.state.Off) {
-                            lightsTimer.Create(timerDelayVal);
-                        }
-                    }
-                    on lightSensor.HighLight(): {}
-                    on frontCamera.CarDetected(): {}
-                    on frontCamera.CarPassed(): {}
-                }
-                [lightsTimer.armed == true] {
-                    on lightSensor.HighLight(): {
-                        lightsTimer.Cancel();
-                    }
-                    on frontCamera.CarDetected(): {
-                        lightsTimer.Cancel();
-                    }
-                    on frontCamera.CarPassed(): {}
-                    on lightSensor.LowLight(): {}
-                }
 
-                on lightsTimer.Timeout(): {
-                    mode = ControlMode.Automatic;
-                    highBeams.TurnOn();
-                    lowLight = true;
-                }
-    
-                on lightShifter.Toggle(): {
-                    lightsTimer.Cancel();
-                    ToggleHighBeams();
-                }
-    
-            }
-            [mode.Automatic] {
-                [highBeams.state.On] {
-                    on lightSensor.HighLight(): {
-                        if (!lightsTimer.armed) {
-                            lightsTimer.Create(timerDelayVal);
-                        }
-                    }
-                    on lightSensor.LowLight(): lightsTimer.Cancel();
-                    on frontCamera.CarDetected(): highBeams.TurnOff();
-                    on frontCamera.CarPassed(): {}
-                    on lightShifter.Toggle(): {
-                        highBeams.TurnOff();
-                        mode = ControlMode.Manual;
-                        lightsTimer.Cancel();
-                    }
-                }
-    
-                [highBeams.state.Off] {
-                    on lightSensor.HighLight(): lightsTimer.Cancel();
-                    on lightSensor.LowLight(): {
-                        if (!lightsTimer.armed)
-                            lightsTimer.Create(timerDelayVal);
-                    }
-                    on frontCamera.CarDetected(): {}
-                    on frontCamera.CarPassed(): highBeams.TurnOn();
-                    on lightShifter.Toggle(): {
-                        highBeams.TurnOn();
-                        mode = ControlMode.Manual;
-                        lightsTimer.Cancel();
-                    }
-                }
-                
-                [lowLight] {
-                    on lightsTimer.Timeout(): {
-                        lowLight = !lowLight;
-                        ToggleHighBeams();
-                    }
-                } 
-                [!lowLight] {
-                    on lightsTimer.Timeout(): {
-                        lowLight = !lowLight;
-                        ToggleHighBeams();
-                    }
-                } 
-            }
-            // If terminate, change state to Manual, cancel all timers
-            // and move back to uninitialized state
-            on module.Terminate(): {
-                mode = ControlMode.Manual;
-                lightsTimer.Cancel();
-            }
-        }
-
-    }
-}
-
-component AutoLightsSystem {
-    provides ILightShifter lightShifter;
-    provides IModule module;
-    provides Req1 req1;
-
-    requires IHighBeamsRelay relay;
-    requires ILightSensor lightSensor;
-
-    system {
-        ModeSelector modeSelector;
-        FrontCameraComponent frontCamera;
-        TimerComponent lightsTimer;
-        ConfigComponent config;
-
-        // Bind to external interfaces
-        modeSelector.lightShifter <=> lightShifter;
-        modeSelector.module <=> module;
-        modeSelector.req1 <=> req1;
-        modeSelector.highBeams <=> relay;
-        modeSelector.lightSensor <=> lightSensor;
-        
-        // Bind to foreign components;
-        modeSelector.frontCamera <=> frontCamera.api;
-        modeSelector.lightsTimer <=> lightsTimer.api;
-        modeSelector.config <=> config.api;
         
     }
+
 }
-
-
