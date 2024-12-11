@@ -76,6 +76,15 @@ interface IFrontCamera {
     }
 }
 
+// Special interface that is triggered every time
+// to check if requirements conditions are met
+interface Req1 {
+    in void Req1();
+    behavior {
+        on Req1: {}
+    }
+}
+
 
 
 
@@ -83,10 +92,13 @@ component ModeSelector {
     provides ILightShifter lightShifter;
     requires IHighBeamsRelay beamsRelay;
     requires ILightSensor lightSensor;
-    // requires IFrontCamera frontCamera;
+    requires IFrontCamera frontCamera;
+    provides Req1 req1;
 
     behavior {
-
+        //Requirement 1: If system is in the automatic mode and car is detected 
+        //               in front, high beams should always be turned off 
+        
         enum ControlMode {Automatic, Manual};
         ControlMode mode = ControlMode.Manual;
 
@@ -98,6 +110,14 @@ component ModeSelector {
             }
         }
 
+        on req1.Req1(): {
+            if (mode.Automatic && frontCamera.state.Detected && beamsRelay.isTurnedOn) {
+                illegal;
+            }
+  
+        }
+
+
         // [beamsRelay.isTurnedOn] {
         [mode.Manual] {
             on lightShifter.Toogle(): {
@@ -106,10 +126,14 @@ component ModeSelector {
             on lightSensor.HighLight(): {}
             on lightSensor.LowLight(): {
                 if(!beamsRelay.isTurnedOn) {
-                    beamsRelay.TurnOn();
+                    if(frontCamera.state.NotDetected) {
+                        beamsRelay.TurnOn();
+                    }
+                    
                     mode = ControlMode.Automatic;
                 }
             }
+            on frontCamera.CarDetected(), frontCamera.CarPassed(): {}
         }
         [mode.Automatic] {
             on lightShifter.Toogle(): {
@@ -117,15 +141,22 @@ component ModeSelector {
                 mode = ControlMode.Manual;
             }
             on lightSensor.LowLight(): {
-                if(!beamsRelay.isTurnedOn) 
+                if(!beamsRelay.isTurnedOn && frontCamera.state.NotDetected) 
                     beamsRelay.TurnOn();
             }
             on lightSensor.HighLight(): {
                 if(beamsRelay.isTurnedOn) 
                     beamsRelay.TurnOff();
             }
-            
 
+            on frontCamera.CarPassed(): {
+                if(!beamsRelay.isTurnedOn) 
+                    beamsRelay.TurnOn();
+            }
+            on frontCamera.CarDetected(): {
+                if(beamsRelay.isTurnedOn) 
+                    beamsRelay.TurnOff();
+            }
         }
 
         
