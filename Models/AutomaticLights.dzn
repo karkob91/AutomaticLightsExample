@@ -8,8 +8,8 @@ interface ILightShifter {
 }
 
 interface IHighBeamsRelay {
-    in bool TurnOn();
-    in bool TurnOff();
+    in void TurnOn();
+    in void TurnOff();
     
 
     behavior {
@@ -53,14 +53,42 @@ interface ILightSensor {
     }
 }
 
+interface IFrontCamera {
+    out void CarDetected();
+    out void CarPassed();
+    enum State {Detected, NotDetected};
+
+    behavior {
+        State state = State.NotDetected;
+
+        [state.NotDetected] {
+            on inevitable: {
+                state = State.Detected;
+                CarDetected;
+            }
+        }
+        [state.Detected] {
+            on inevitable: {
+                state = State.NotDetected;
+                CarPassed;
+            }
+        }
+    }
+}
+
+
 
 
 component ModeSelector {
     provides ILightShifter lightShifter;
     requires IHighBeamsRelay beamsRelay;
     requires ILightSensor lightSensor;
+    // requires IFrontCamera frontCamera;
 
     behavior {
+
+        enum ControlMode {Automatic, Manual};
+        ControlMode mode = ControlMode.Manual;
 
         void ToggleLights() {
             if(beamsRelay.isTurnedOn)
@@ -69,20 +97,33 @@ component ModeSelector {
                 beamsRelay.TurnOn();
             }
         }
-        [beamsRelay.isTurnedOn] {
+
+        // [beamsRelay.isTurnedOn] {
+        [mode.Manual] {
             on lightShifter.Toogle(): {
-                beamsRelay.TurnOff();
-            }
-            on lightSensor.HighLight(): {
-                beamsRelay.TurnOff();
-            }
-            on lightSensor.LowLight(): {}
-        }
-        [!beamsRelay.isTurnedOn] {
-            on lightShifter.Toogle(), lightSensor.LowLight(): {
-                beamsRelay.TurnOn();
+                ToggleLights();
             }
             on lightSensor.HighLight(): {}
+            on lightSensor.LowLight(): {
+                if(!beamsRelay.isTurnedOn) {
+                    beamsRelay.TurnOn();
+                    mode = ControlMode.Automatic;
+                }
+            }
+        }
+        [mode.Automatic] {
+            on lightShifter.Toogle(): {
+                ToggleLights();
+                mode = ControlMode.Manual;
+            }
+            on lightSensor.LowLight(): {
+                if(!beamsRelay.isTurnedOn) 
+                    beamsRelay.TurnOn();
+            }
+            on lightSensor.HighLight(): {
+                if(beamsRelay.isTurnedOn) 
+                    beamsRelay.TurnOff();
+            }
             
 
         }
