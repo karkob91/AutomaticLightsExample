@@ -6,14 +6,17 @@ interface IFrontCamera {
     behavior {
         State state = State.NotDetected;
 
-        on inevitable: {
-            state = State.Detected;
-            CarDetected;
+        [state.NotDetected] {
+            on inevitable: {
+                state = State.Detected;
+                CarDetected;
+            }
         }
-        on inevitable: {
-            state = State.NotDetected;
-            CarPassed;
+        [state.Detected] {
+            on inevitable: {
+                state = State.NotDetected;
+                CarPassed;
+            }
         }
     }
 }
-

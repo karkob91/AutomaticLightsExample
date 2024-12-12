@@ -5,14 +5,17 @@ interface ILightSensor {
 
     behavior {
         State state = State.High;
-        on inevitable: {
-            state = State.High;
-            LowLight;
+        [state.High] {
+            on inevitable: {
+                state = State.Low;
+                LowLight;
+            }
         }
-        on inevitable: {
-            state = State.Low;
-            HighLight;
+        [state.Low] {
+            on inevitable: {
+                state = State.High;
+                HighLight;
+            }
         }
     }
 }
-

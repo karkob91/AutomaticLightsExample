@@ -1,82 +1,9 @@
 import Utils/Timer/Timer.dzn;
+import FrontCamera/FrontCamera.dzn;
+import LightSensor/LightSensor.dzn;
+import HighBeamsRelay/HighBeamsRelay.dzn;
+import LightShifter.dzn;
 
-interface ILightShifter {
-    in void Toogle();
-
-    behavior {
-        on Toogle: {}
-    }
-
-}
-
-interface IHighBeamsRelay {
-    in void TurnOn();
-    in void TurnOff();
-    
-
-    behavior {
-        bool isTurnedOn = false;
-
-        [isTurnedOn] {
-            
-            on TurnOff: {
-                isTurnedOn = false;
-            }
-        }
-        [!isTurnedOn] {
-            on TurnOn: {
-                isTurnedOn = true;
-            }
-            
-        }
-    }
-
-}
-
-interface ILightSensor {
-    out void LowLight();
-    out void HighLight();
-    enum State {Low, High};
-
-    behavior {
-        State state = State.High;
-        [state.High] {
-            on inevitable: {
-                state = State.Low;
-                LowLight;
-            }
-        }
-        [state.Low] {
-            on inevitable: {
-                state = State.High;
-                HighLight;
-            }
-        }
-    }
-}
-
-interface IFrontCamera {
-    out void CarDetected();
-    out void CarPassed();
-    enum State {Detected, NotDetected};
-
-    behavior {
-        State state = State.NotDetected;
-
-        [state.NotDetected] {
-            on inevitable: {
-                state = State.Detected;
-                CarDetected;
-            }
-        }
-        [state.Detected] {
-            on inevitable: {
-                state = State.NotDetected;
-                CarPassed;
-            }
-        }
-    }
-}
 
 // Special interface that is triggered every time
 // to check if requirements conditions are met
@@ -88,9 +15,6 @@ interface Req {
         on Req1, Req2, Req3: {}
     }
 }
-
-
-
 
 component ModeSelector {
     provides ILightShifter lightShifter;

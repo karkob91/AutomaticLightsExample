@@ -1,5 +1,0 @@
-import FrontCamera.dzn;
-
-component FrontCameraComponent {
-    provides IFrontCamera api;
-}
