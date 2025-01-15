@@ -1,8 +1,8 @@
 interface ILightShifter {
-    in void Toogle();
+    in void Toggle();
 
     behavior {
-        on Toogle: {}
+        on Toggle: {}
     }
 
 }

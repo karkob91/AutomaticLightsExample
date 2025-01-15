@@ -4,17 +4,23 @@ interface ILightSensor {
     enum State {Low, High};
 
     behavior {
-        State state = State.High;
+        State state = State.Low;
         [state.High] {
             on inevitable: {
                 state = State.Low;
                 LowLight;
+            }
+            on inevitable: {
+                HighLight;
             }
         }
         [state.Low] {
             on inevitable: {
                 state = State.High;
                 HighLight;
+            }
+            on inevitable: {
+                LowLight;
             }
         }
     }

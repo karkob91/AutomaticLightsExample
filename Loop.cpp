@@ -41,8 +41,9 @@ void Loop::Disable(size_t id)
 unsigned long Loop::Millis() const
 {
     auto now = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(now - m_startTime).count();
+    return static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - m_startTime).count());
 }
+
 
 // Update loop
 void Loop::Update()

@@ -1,0 +1,178 @@
+import Utils/Timer/Timer.dzn;
+import FrontCamera/FrontCamera.dzn;
+import LightSensor/LightSensor.dzn;
+import HighBeamsRelay/HighBeamsRelay.dzn;
+import LightShifter.dzn;
+import Utils/Timer/TimerSkel.dzn;
+import Utils/Module.dzn;
+import Utils/Config/Config.dzn;
+import Utils/Config/ConfigSkel.dzn;
+
+
+// Special interface that is triggered every time
+// to check if requirements conditions are met
+interface Req {
+    in void Req1();
+    in void Req2();
+    in void Req3();
+    behavior {
+        on Req1, Req2, Req3: {}
+    }
+}
+
+component AutomaticLightsImpl {
+    provides ILightShifter lightShifter;
+    provides IModule module;
+    requires IHighBeamsRelay beamsRelay;
+    requires ILightSensor lightSensor;
+    requires IFrontCamera frontCamera;
+    provides Req req;
+    requires Timer timer;
+    requires IConfig config;
+
+    behavior {
+        //Requirement 1: If system is in the automatic mode and car is detected 
+        //               in front, high beams should always be turned off 
+        
+        enum ControlMode {Automatic, Manual};
+        ControlMode mode = ControlMode.Manual;
+        int toggleDelay;
+
+        void ToggleLights() {
+            if(beamsRelay.isTurnedOn)
+                beamsRelay.TurnOff();
+            else {
+                beamsRelay.TurnOn();
+            }
+        }
+        // Req1: If automatic mode is enabled systme should never blind a driver in front
+        on req.Req1(): {
+            if (mode.Automatic && frontCamera.state.Detected && beamsRelay.isTurnedOn) {
+                illegal;
+            }
+        }
+        // Req2: In automatic mode system should not turn on high beams if light conditions are high
+        on req.Req2(): {
+            if (mode.Automatic && lightSensor.state.High && beamsRelay.isTurnedOn && !timer.armed) {
+                illegal;
+            }
+        }
+        // Re3: When system is in manual mode and light is low, system should try enter Automatic mode
+        on req.Req3(): {
+            if (module.state.Operational && mode.Manual && lightSensor.state.Low && !timer.armed) {
+                illegal;
+            }
+        }
+        [module.state.Uninitialized] {
+            on module.Initialize(): {
+                // pass timerDelayVal as a refference and fill in in the hand-written part of code
+                Result res = config.GetLightDelay(toggleDelay);
+
+                if (res.Ok) {
+                    if(lightSensor.state.Low) {
+                        timer.Create(toggleDelay);
+                    }
+                }
+
+                reply(res);
+                // reply(res.Ok);
+                // if res == Ok, module state will change to Operational and system can operate in automatic mode
+            }
+
+            // If system is not properly initialized (failed to get "timerDelayVal" from config),
+            // system will only react to drivers manual shifting. 
+            // If system is correctly initialized, system will move to module.state.Operational and will
+            // be able to move between manual and automatic mode
+            on lightShifter.Toggle(): {
+                timer.Cancel();
+                ToggleLights();
+            }
+            on lightSensor.LowLight(): {}
+            on lightSensor.HighLight(): {}
+            on frontCamera.CarDetected(): {}
+            on frontCamera.CarPassed(): {}
+
+            on module.Terminate(): {}
+        }
+        [module.state.Operational] {
+            on module.Terminate(): {
+                mode = ControlMode.Manual;
+                timer.Cancel();
+            }
+            [mode.Manual] {
+                on lightShifter.Toggle(): {
+                    ToggleLights();
+                    if(timer.armed)
+                        timer.Cancel();
+                    if(lightSensor.state.Low) {
+                        timer.Create(toggleDelay);
+                    }
+                }
+                on lightSensor.HighLight(): {
+                    if(timer.armed)
+                        timer.Cancel();
+                }
+                on lightSensor.LowLight(): {
+                    if(!timer.armed)
+                        timer.Create(toggleDelay);
+                }
+                on frontCamera.CarDetected(), frontCamera.CarPassed(): {}
+                on timer.Timeout(): {
+                    mode = ControlMode.Automatic;
+                    if(!beamsRelay.isTurnedOn) {
+                        if(frontCamera.state.NotDetected) {
+                            beamsRelay.TurnOn();
+                        }
+                    } else {
+                        if(frontCamera.state.Detected) {
+                            beamsRelay.TurnOff();
+                        }
+                    }
+                }
+            }
+            [mode.Automatic] {
+                on lightShifter.Toggle(): {
+                    ToggleLights();
+                    if(timer.armed)
+                        timer.Cancel();
+                    mode = ControlMode.Manual;
+                    if(lightSensor.state.Low) {
+                        timer.Create(toggleDelay);
+                    }
+                }
+                on lightSensor.LowLight(): {
+                    if(timer.armed)
+                        timer.Cancel();
+                    if(!beamsRelay.isTurnedOn && frontCamera.state.NotDetected) 
+                        timer.Create(toggleDelay);
+                }
+                on lightSensor.HighLight(): {
+                    if(timer.armed)
+                        timer.Cancel();
+                    if(beamsRelay.isTurnedOn) 
+                        timer.Create(toggleDelay);
+                }
+
+                on timer.Timeout(): {
+                    ToggleLights();
+                }
+
+                on frontCamera.CarPassed(): {
+                    // if(timer.armed)
+                    //     timer.Cancel();
+                    if(!beamsRelay.isTurnedOn && lightSensor.state.Low) 
+                        beamsRelay.TurnOn();
+                }
+                on frontCamera.CarDetected(): {
+                    if(timer.armed)
+                        timer.Cancel();
+                    if(beamsRelay.isTurnedOn) 
+                        beamsRelay.TurnOff();
+                }
+            }
+        }
+
+        
+    }
+
+}

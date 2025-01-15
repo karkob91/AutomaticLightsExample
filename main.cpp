@@ -5,7 +5,7 @@
 #include <chrono> // For time measurement
 
 // Declare the unique pointer for HelloWorldSystem
-std::unique_ptr<AutoLightsSystem> autoLightsSystem;
+std::unique_ptr<AutomaticLights> autoLightsSystem;
 
 int main()
 {
@@ -21,7 +21,7 @@ int main()
     locator.set(updateLoop);
 
     // Create the AutoLights component instance
-    autoLightsSystem = std::make_unique<AutoLightsSystem>(locator);
+    autoLightsSystem = std::make_unique<AutomaticLights>(locator);
     std::cout << "Dezyne component successfully created." << std::endl;
 
     bool HighBeamsOn = false;
@@ -45,7 +45,6 @@ int main()
         std::cout << "Automatic Lights System Initialized." << std::endl;
     }
 
-    // Call initialize trigger to read config for light timer
     autoLightsSystem->lightSensor.out.LowLight();
 
 
