@@ -136,6 +136,7 @@ component AutomaticLightsImpl {
                     if(timer.armed)
                         timer.Cancel();
                     mode = ControlMode.Manual;
+                    // BUG3
                     if(lightSensor.state.Low) {
                         timer.Create(toggleDelay);
                     }
@@ -143,7 +144,8 @@ component AutomaticLightsImpl {
                 on lightSensor.LowLight(): {
                     if(timer.armed)
                         timer.Cancel();
-                    if(!beamsRelay.isTurnedOn && frontCamera.state.NotDetected) 
+                        
+                    if(!beamsRelay.isTurnedOn && frontCamera.state.NotDetected) //BUG1
                         timer.Create(toggleDelay);
                 }
                 on lightSensor.HighLight(): {
@@ -158,9 +160,7 @@ component AutomaticLightsImpl {
                 }
 
                 on frontCamera.CarPassed(): {
-                    // if(timer.armed)
-                    //     timer.Cancel();
-                    if(!beamsRelay.isTurnedOn && lightSensor.state.Low) 
+                    if(!beamsRelay.isTurnedOn && lightSensor.state.Low) //BUG2
                         beamsRelay.TurnOn();
                 }
                 on frontCamera.CarDetected(): {
