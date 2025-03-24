@@ -7,7 +7,6 @@ import Utils/Config/ConfigSkel.dzn;
 component AutomaticLights {
     provides ILightShifter lightShifter;
     provides IModule module;
-    provides Req req;
 
     requires IHighBeamsRelay relay;
     requires ILightSensor lightSensor;
@@ -21,7 +20,6 @@ component AutomaticLights {
         // Bind to external interfaces
         impl.lightShifter <=> lightShifter;
         impl.module <=> module;
-        impl.req <=> req;
         impl.beamsRelay <=> relay;
         impl.lightSensor <=> lightSensor;
         

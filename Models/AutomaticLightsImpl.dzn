@@ -8,32 +8,16 @@ import Utils/Module.dzn;
 import Utils/Config/Config.dzn;
 import Utils/Config/ConfigSkel.dzn;
 
-
-// Special interface that is triggered every time
-// to check if requirements conditions are met
-interface Req {
-    in void Req1();
-    in void Req2();
-    in void Req3();
-    behavior {
-        on Req1, Req2, Req3: {}
-    }
-}
-
 component AutomaticLightsImpl {
     provides ILightShifter lightShifter;
     provides IModule module;
     requires IHighBeamsRelay beamsRelay;
     requires ILightSensor lightSensor;
     requires IFrontCamera frontCamera;
-    provides Req req;
     requires Timer timer;
     requires IConfig config;
 
     behavior {
-        //Requirement 1: If system is in the automatic mode and car is detected 
-        //               in front, high beams should always be turned off 
-        
         enum ControlMode {Automatic, Manual};
         ControlMode mode = ControlMode.Manual;
         int toggleDelay;
@@ -45,24 +29,28 @@ component AutomaticLightsImpl {
                 beamsRelay.TurnOn();
             }
         }
-        // Req1: If automatic mode is enabled systme should never blind a driver in front
-        on req.Req1(): {
-            if (mode.Automatic && frontCamera.state.Detected && beamsRelay.isTurnedOn) {
-                illegal;
-            }
-        }
+
+        // Req1: If automatic mode is enabled system should never blind driver in front
+        bool never_blind_driver_in_front () =
+        mode.Automatic && frontCamera.state.Detected => !beamsRelay.isTurnedOn;
+      
+        invariant never_blind_driver_in_front ();
+
+
         // Req2: In automatic mode system should not turn on high beams if light conditions are high
-        on req.Req2(): {
-            if (mode.Automatic && lightSensor.state.High && beamsRelay.isTurnedOn && !timer.armed) {
-                illegal;
-            }
-        }
-        // Re3: When system is in manual mode and light is low, system should try enter Automatic mode
-        on req.Req3(): {
-            if (module.state.Operational && mode.Manual && lightSensor.state.Low && !timer.armed) {
-                illegal;
-            }
-        }
+        bool high_beams_off_if_light_high () =
+        mode.Automatic && lightSensor.state.High && !timer.armed => !beamsRelay.isTurnedOn;
+      
+        invariant high_beams_off_if_light_high ();
+
+
+        // Req3: When system is operational and in manual mode and light is low, system should try enter Automatic mode
+        bool enter_automatic_when_light_low () =
+        module.state.Operational && mode.Manual && lightSensor.state.Low => timer.armed;
+      
+        invariant enter_automatic_when_light_low ();
+
+        
         [module.state.Uninitialized] {
             on module.Initialize(): {
                 // pass timerDelayVal as a refference and fill in in the hand-written part of code
