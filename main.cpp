@@ -3,6 +3,8 @@
 #include <memory>
 #include <iostream>
 #include <chrono> // For time measurement
+#include "ProviderExample/src/Provider/SensorHandler.h"
+#include <windows.h>
 
 // Declare the unique pointer for HelloWorldSystem
 std::unique_ptr<AutomaticLights> autoLightsSystem;
@@ -44,6 +46,46 @@ int main()
     if (res == ::Result::Ok) {
         std::cout << "Automatic Lights System Initialized." << std::endl;
     }
+
+    // DEZYNE 
+
+    bool bSecureProviderInterface = false; //Enables HTTPS interface on the application service (with token enabled)
+    bool bSecureArrowheadInterface = false;
+
+    SensorHandler oSensorHandler;
+
+//SenML format
+//todo:
+//generate own measured value into "measuredValue"
+//"value" should be periodically updated
+//"sLinuxEpoch" should be periodically updated
+
+     std::string measuredValue; //JSON - SENML format
+     time_t linuxEpochTime = std::time(0);
+     std::string sLinuxEpoch = std::to_string(static_cast<uint64_t>(linuxEpochTime));
+
+     double value = 26.0;
+//convert double to string
+     std::ostringstream streamObj;
+     streamObj << std::fixed;
+     streamObj << std::setprecision(1);
+     streamObj << value;
+     std::string sValue = streamObj.str();
+
+     measuredValue =
+          "{"
+               "\"e\":[{"
+                    "\"n\": \"this_is_the_sensor_id\","
+                    "\"v\":" + sValue +","
+                    "\"t\": \"" + sLinuxEpoch + "\""
+                    "}],"
+               "\"bn\": \"this_is_the_sensor_id\","
+               "\"bu\": \"Celsius\""
+          "}";
+
+//do not modify below this
+
+     oSensorHandler.processProvider(measuredValue, bSecureProviderInterface, bSecureArrowheadInterface);
 
     autoLightsSystem->lightSensor.out.LowLight();
 
