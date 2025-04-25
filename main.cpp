@@ -4,7 +4,7 @@
 #include <iostream>
 #include <chrono> // For time measurement
 #include "ProviderExample/src/Provider/SensorHandler.h"
-#include <windows.h>
+// #include <windows.h>
 
 // Declare the unique pointer for HelloWorldSystem
 std::unique_ptr<AutomaticLights> autoLightsSystem;
@@ -87,7 +87,7 @@ int main()
 
      oSensorHandler.processProvider(measuredValue, bSecureProviderInterface, bSecureArrowheadInterface);
 
-    autoLightsSystem->lightSensor.out.LowLight();
+    // autoLightsSystem->lightSensor.out.LowLight();
 
 
     while (true) {

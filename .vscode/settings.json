@@ -91,6 +91,11 @@
         "xtr1common": "cpp",
         "xtree": "cpp",
         "xutility": "cpp",
-        "cinttypes": "cpp"
+        "cinttypes": "cpp",
+        "bitset": "cpp",
+        "csignal": "cpp",
+        "regex": "cpp",
+        "stack": "cpp",
+        "unordered_set": "cpp"
     }
 }

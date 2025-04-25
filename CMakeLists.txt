@@ -48,6 +48,9 @@ message(STATUS "Dezyne tool path: ${DZN_TOOL}")
 # Set project name
 project(${PROJECT_NAME})
 
+find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(OpenSSL REQUIRED)
+
 # Add JSON library (header-only)
 include(FetchContent)
 FetchContent_Declare(
@@ -170,7 +173,15 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 )
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE DezyneRuntime nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PRIVATE 
+    DezyneRuntime 
+    nlohmann_json::nlohmann_json 
+    Boost::system Boost::thread 
+    OpenSSL::SSL 
+    OpenSSL::Crypto 
+    ws2_32
+    mswsock 
+)
 
 
 # Set the output directory for the executable
