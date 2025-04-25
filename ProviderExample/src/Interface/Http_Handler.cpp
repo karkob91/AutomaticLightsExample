@@ -8,8 +8,6 @@
 #include <iostream>
 #include <thread>
 
-// using tcp = boost::asio::ip::tcp;
-// namespace http = boost::beast::http;
 namespace beast = boost::beast;
 namespace http = beast::http;
 namespace net = boost::asio;
@@ -23,99 +21,105 @@ Http_Handler::~Http_Handler() {
     KillServer();
 }
 
-
-
-
-
 int Http_Handler::SendRequest(const std::string& pdata, const std::string& paddr, const std::string& pmethod) {
-
      try {
-         // ----------- Check connection with Arrowhead /echo -----------
-         std::string test_host = "172.25.164.36";
-         std::string test_port = "8443";
-         std::string test_target = "/serviceregistry/echo";
- 
+         // Parse URL to extract components
+         std::string host, port, target;
+         
+         // Extract protocol, host, port and path
+         auto const protocol_pos = paddr.find("://");
+         auto const host_start = (protocol_pos == std::string::npos) ? 0 : protocol_pos + 3;
+         auto const colon_pos = paddr.find(':', host_start);
+         auto const path_start = paddr.find('/', host_start);
+         
+         if (colon_pos != std::string::npos && (path_start == std::string::npos || colon_pos < path_start)) {
+             // URL has port specification
+             host = paddr.substr(host_start, colon_pos - host_start);
+             auto const port_end = (path_start == std::string::npos) ? paddr.length() : path_start;
+             port = paddr.substr(colon_pos + 1, port_end - (colon_pos + 1));
+         } else {
+             // No port in URL, use default port based on protocol
+             host = (path_start == std::string::npos) ? 
+                 paddr.substr(host_start) : 
+                 paddr.substr(host_start, path_start - host_start);
+                 
+             // Default port based on protocol
+             if (protocol_pos != std::string::npos && paddr.substr(0, protocol_pos) == "https") {
+                 port = "443";
+             } else {
+                 port = "80";
+             }
+         }
+         
+         target = (path_start == std::string::npos) ? "/" : paddr.substr(path_start);
+         
+         std::cout << "[DEBUG] Parsed URL - Host: " << host << ", Port: " << port << ", Target: " << target << std::endl;
+         
+         // Setup Boost.Beast components
          net::io_context ioc;
          tcp::resolver resolver(ioc);
          beast::tcp_stream stream(ioc);
- 
-         auto const results = resolver.resolve(test_host, test_port);
-         stream.connect(results);
- 
-         http::request<http::string_body> test_req{http::verb::get, test_target, 11};
-         test_req.set(http::field::host, test_host);
-         test_req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
- 
-         http::write(stream, test_req);
- 
-         beast::flat_buffer buffer;
-         http::response<http::string_body> test_res;
-         http::read(stream, buffer, test_res);
- 
-         if (test_res.result() != http::status::ok) {
-             std::cerr << "[ERROR] Arrowhead registry echo failed with status: " << test_res.result_int() << "\n";
-             return 500;
+         
+         // Use explicit IP address instead of hostname resolution when possible
+         // This helps avoid DNS resolution issues
+         if (host == "172.25.164.36") {
+             // Using direct IP and port
+             tcp::endpoint endpoint(net::ip::make_address(host), std::stoi(port));
+             stream.connect(endpoint);
+         } else {
+             // Standard resolution
+             auto const results = resolver.resolve(host, port);
+             stream.connect(results);
          }
- 
-         std::cout << "[INFO] Arrowhead /echo responded: " << test_res.body() << "\n";
- 
-         // Gracefully close the socket
+         
+         // Determine the HTTP verb from the method string
+         http::verb verb;
+         if (pmethod == "GET") verb = http::verb::get;
+         else if (pmethod == "POST") verb = http::verb::post;
+         else if (pmethod == "PUT") verb = http::verb::put;
+         else if (pmethod == "DELETE") verb = http::verb::delete_;
+         else throw std::runtime_error("Unsupported HTTP method: " + pmethod);
+         
+         // Create the request
+         http::request<http::string_body> req{verb, target, 11};
+         req.set(http::field::host, host);
+         req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+         
+         // Set appropriate headers and body
+         if (!pdata.empty()) {
+             req.set(http::field::content_type, "application/json");
+             req.body() = pdata;
+             req.prepare_payload();
+         }
+         
+         // Log the final request for debugging
+         std::cout << "[DEBUG] Final composed HTTP request:\n" << req << std::endl;
+         
+         // Send the request
+         http::write(stream, req);
+         
+         // Receive the response
+         beast::flat_buffer buffer;
+         http::response<http::string_body> res;
+         http::read(stream, buffer, res);
+         
+         // Log the response
+         std::cout << "[INFO] Response status: " << res.result_int() << std::endl;
+         std::cout << res.body() << std::endl;
+         
+         // Clean up
          beast::error_code ec;
          stream.socket().shutdown(tcp::socket::shutdown_both, ec);
- 
-         // Ignore not_connected errors
          if (ec && ec != beast::errc::not_connected)
              throw beast::system_error{ec};
- 
-     } catch (const std::exception& e) {
-         std::cerr << "[ERROR] Failed to contact Arrowhead registry /echo: " << e.what() << "\n";
+         
+         return res.result_int();
+     }
+     catch (std::exception& e) {
+         std::cerr << "Error in SendRequest: " << e.what() << std::endl;
          return 500;
      }
- 
-     // ----------- Then continue with your actual POST/PUT request -----------
-     std::cout << "[DEBUG] Proceeding with actual SendRequest logic to: " << paddr << "\n";
-    try {
-        auto const pos = paddr.find("://");
-        auto const host_start = (pos == std::string::npos) ? 0 : pos + 3;
-        auto const host_end = paddr.find('/', host_start);
-        std::string host = paddr.substr(host_start, host_end - host_start);
-        std::string target = paddr.substr(host_end);
-
-        int version = 11;  // HTTP/1.1
-
-        tcp::resolver resolver(ioc_);
-        auto const results = resolver.resolve(host, "80");
-
-        tcp::socket socket(ioc_);
-        boost::asio::connect(socket, results.begin(), results.end());
-
-        http::request<http::string_body> req;
-        req.version(version);
-        req.method_string(pmethod);
-        req.target(target);
-        req.set(http::field::host, host);
-        req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-        req.set(http::field::content_type, "application/json");
-        req.body() = pdata;
-        req.prepare_payload();
-
-        http::write(socket, req);
-
-        http::response<http::string_body> res;
-        boost::beast::flat_buffer buffer;
-        http::read(socket, buffer, res);
-
-        std::cout << res << std::endl;
-
-        boost::system::error_code ec;
-        socket.shutdown(tcp::socket::shutdown_both, ec);
-        return 200;
-    } catch (std::exception& e) {
-        std::cerr << "Error in SendRequest: " << e.what() << std::endl;
-        return 500;  // internal server error
-    }
-}
-
+ }
 int Http_Handler::MakeServer(unsigned short listen_port) {
     try {
         tcp::endpoint endpoint(tcp::v4(), listen_port);
@@ -194,7 +198,7 @@ void Http_Handler::handleSession(std::shared_ptr<tcp::socket> socket) {
 }
 
 int Http_Handler::httpGETCallback(const char* Id, std::string* pData_str) {
-    *pData_str = R"({"message":"Hello from "})" + std::string(Id);
+    *pData_str = R"({\"message\":\"Hello from \"})" + std::string(Id);
     return 1;
 }
 
