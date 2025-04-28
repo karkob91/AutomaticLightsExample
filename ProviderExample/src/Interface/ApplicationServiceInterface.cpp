@@ -276,6 +276,32 @@ int ApplicationServiceInterface::registerToServiceRegistry(Arrowhead_Data_ext &s
 
 int ApplicationServiceInterface::unregisterFromServiceRegistry(Arrowhead_Data_ext &stAH_data, bool _bSecureArrowheadInterface, bool _bProviderIsSecure)
 {
+    // URL encode the service URI if it contains special characters
+    std::string encodedServiceUri = stAH_data.sServiceURI;
+    
+    // Simple URL encoding for the service URI
+    auto urlEncode = [](const std::string &s) {
+        std::string result;
+        for (char c : s) {
+            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                result += c;
+            } else if (c == ' ') {
+                result += "%20";
+            } else if (c == '/') {
+                result += "%2F";  // Encode forward slash
+            } else {
+                result += '%';
+                char hex[3];
+                sprintf(hex, "%02X", (unsigned char)c);
+                result += hex;
+            }
+        }
+        return result;
+    };
+    
+    encodedServiceUri = urlEncode(encodedServiceUri);
+    
+    // Build query parameters with ALL required fields
     std::string sParams = "service_definition=" + stAH_data.sServiceDefinition +
                           "&system_name=" + stAH_data.sSystemName +
                           "&address=";
@@ -291,7 +317,16 @@ int ApplicationServiceInterface::unregisterFromServiceRegistry(Arrowhead_Data_ex
         sParams += std::to_string(PORT+1);
     else
         sParams += std::to_string(PORT);
+    
+    // Add the service_uri parameter which is required for unregistration
+    sParams += "&service_uri=" + encodedServiceUri;
 
+    // Log the unregister URL for debugging
+    std::cout << "Unregister URL: " << ((_bSecureArrowheadInterface ? 
+                                       SR_BASE_URI_HTTPS : SR_BASE_URI) + 
+                                       "unregister?" + sParams) << std::endl;
+
+    // Send request to appropriate endpoint
     if(_bSecureArrowheadInterface)
         return SendHttpsRequest("", SR_BASE_URI_HTTPS + "unregister?" + sParams, "DELETE");
     else

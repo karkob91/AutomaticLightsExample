@@ -58,6 +58,9 @@ void SensorHandler::processProvider(std::string pJsonSenML, bool _bProviderIsSec
     } else {
         printf("Provider Registration is unsuccessful!\n");
     }
+
+	// printf("DEGEGISTERINNNNNNGGGGGGGGGGGGGGG!!!!!!!!!!!!\n");
+	// bool dupa = deregisterSensor(pJsonSenML, _bProviderIsSecure, _bSecureArrowheadInterface);
 }
 /*
 --
