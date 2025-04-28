@@ -681,6 +681,21 @@ bool ArrowheadManager::queryAndDeregisterAllSystems() {
     std::string responsePayload;
     
     log("Querying all systems...");
+
+    log("SYSTEM QUERY:" + queryUrl);
+
+    // {
+    //     std::ostringstream oss;
+    //     oss << req; // boost::beast::http::request supports operator<<
+    //     log("Outgoing HTTP Request:\n" + oss.str());
+    // }
+
+    // // ===== LOG THE FULL RESPONSE =====
+    // {
+    //     std::ostringstream oss;
+    //     oss << res; // boost::beast::http::response supports operator<<
+    //     log("Incoming HTTP Response:\n" + oss.str());
+    // }
     
     int httpResponseCode = httpGet(queryUrl, responsePayload);
     bool ret = true;

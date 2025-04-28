@@ -78,7 +78,7 @@ int main()
     
     // Define services consumed by this system
     std::vector<std::string> consumedServices = {
-        "api-arm"
+        // "api-arm"
     };
     
     // Create ArrowheadManager instance
@@ -164,9 +164,39 @@ int main()
     std::cout << "\nRegistering system and services with Arrowhead..." << std::endl;
     bool ahReady = false;
     
-    // Main loop - similar to your ESP32 implementation
-    for (int i = 0; i < 30; i++) { // Run for 30 iterations for this example
-        // Try to register with Arrowhead
+    // // Main loop - similar to your ESP32 implementation
+    // for (int i = 0; i < 30; i++) { // Run for 30 iterations for this example
+    //     // Try to register with Arrowhead
+    //     if (manager.registerSystemAndServices()) {
+    //         if (!ahReady) {
+    //             std::cout << "Successfully registered with Arrowhead!" << std::endl;
+    //             ahReady = true;
+    //         }
+            
+    //         // If registered, we could handle button presses or other inputs here
+    //         // For this example, we'll just simulate some service consumption
+    //         // if (i % 5 == 0) { // Every 5 seconds, consume a service
+    //         //     std::cout << "\nConsuming 'api-arm' service with PIN 1234..." << std::endl;
+    //         //     bool result = manager.consumeService("api-arm", "pin", 1234);
+    //         //     std::cout << "Result: " << (result ? "Valid PIN" : "Invalid PIN") << std::endl;
+    //         // }
+    //     } else if (ahReady) {
+    //         ahReady = false;
+    //         std::cout << "Lost connection to Arrowhead, attempting to reconnect..." << std::endl;
+    //     }
+        
+    //     // Sleep for a second before next iteration
+    //     std::this_thread::sleep_for(std::chrono::seconds(1));
+        
+    //     // Print a status message for the example
+    //     std::cout << "Server running... (iteration " << i + 1 << " of 30)" << std::endl;
+    // }
+    
+    
+
+    while (true) {
+        // Update register loop component to for example - check if timer has elapsed
+        updateLoop.Update();
         if (manager.registerSystemAndServices()) {
             if (!ahReady) {
                 std::cout << "Successfully registered with Arrowhead!" << std::endl;
@@ -175,33 +205,22 @@ int main()
             
             // If registered, we could handle button presses or other inputs here
             // For this example, we'll just simulate some service consumption
-            if (i % 5 == 0) { // Every 5 seconds, consume a service
-                std::cout << "\nConsuming 'api-arm' service with PIN 1234..." << std::endl;
-                bool result = manager.consumeService("api-arm", "pin", 1234);
-                std::cout << "Result: " << (result ? "Valid PIN" : "Invalid PIN") << std::endl;
-            }
+            // if (i % 5 == 0) { // Every 5 seconds, consume a service
+            //     std::cout << "\nConsuming 'api-arm' service with PIN 1234..." << std::endl;
+            //     bool result = manager.consumeService("api-arm", "pin", 1234);
+            //     std::cout << "Result: " << (result ? "Valid PIN" : "Invalid PIN") << std::endl;
+            // }
         } else if (ahReady) {
             ahReady = false;
             std::cout << "Lost connection to Arrowhead, attempting to reconnect..." << std::endl;
         }
-        
-        // Sleep for a second before next iteration
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        
-        // Print a status message for the example
-        std::cout << "Server running... (iteration " << i + 1 << " of 30)" << std::endl;
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
-    
+
     // Stop the server when done
     std::cout << "\nStopping HTTP server..." << std::endl;
     manager.stopServer();
-
-    while (true) {
-        // Update register loop component to for example - check if timer has elapsed
-        updateLoop.Update();
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
 
     return 0;
 }
