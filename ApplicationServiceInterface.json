@@ -1,0 +1,25 @@
+{
+    "Server": {
+      "sr_base_uri": "http://172.25.164.36:8443/serviceregistry/",
+      "sr_base_uri_https": "https://172.25.164.36:8443/serviceregistry/",
+      "address": "172.25.164.1",
+      "address6": "[::1]",
+      "port": 8452
+    },
+    "System": {
+      "system_name": "ApplicationServiceSystem"
+    },
+    "Security": {
+      "use_secure": false,
+      "cert_path": "keys/appservice.privkey.pem",
+      "key_path": "keys/appservice.pubkey.pem"
+    },
+    "Service": {
+      "service_definition": "IndoorTemperature",
+      "service_uri": "/temperature",
+      "interfaces": ["HTTP-INSECURE-JSON"],
+      "metadata": {
+        "unit": "celsius"
+      }
+    }
+  }

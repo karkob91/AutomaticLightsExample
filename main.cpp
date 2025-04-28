@@ -4,6 +4,7 @@
 #include <iostream>
 #include <chrono> // For time measurement
 #include "ProviderExample/src/Provider/SensorHandler.h"
+#include "ProviderExample/src/Provider/ServiceConsumer.h"
 // #include <windows.h>
 
 // Declare the unique pointer for HelloWorldSystem
@@ -88,6 +89,78 @@ int main()
      oSensorHandler.processProvider(measuredValue, bSecureProviderInterface, bSecureArrowheadInterface);
 
     // autoLightsSystem->lightSensor.out.LowLight();
+
+
+    cout << "==================================================================" << endl;
+    cout << "Arrowhead Framework Service Consumer Example" << endl;
+    cout << "==================================================================" << endl;
+    
+    // Initialize the service consumer with configuration file
+    ServiceConsumer consumer("ServiceCon
+        sumer.json");
+    
+    // Configure our system information for orchestration
+    const string OUR_SYSTEM_NAME = "ExampleConsumerSystem";
+    const string OUR_ADDRESS = "10.0.0.12";  // Change to your actual IP address
+    const int OUR_PORT = 8454;
+    
+    cout << "Initializing service consumer..." << endl;
+    
+    // Initialize consumer with our system information
+    if (!consumer.initConsumer(OUR_SYSTEM_NAME, OUR_ADDRESS, OUR_PORT)) {
+        cerr << "Failed to initialize service consumer" << endl;
+        return 1;
+    }
+    
+    cout << "Service consumer initialized successfully." << endl;
+    
+    // Define the service we want to discover
+    const string TARGET_SERVICE = "IndoorTemperatureProviderExample";
+    
+    // Define interfaces we accept
+    vector<string> interfaces = {"HTTP-INSECURE-JSON"};
+    
+    // Define metadata requirements
+    map<string, string> metadata = {
+        {"unit", "Celsius"}
+    };
+    
+    cout << "\nDiscovering services..." << endl;
+    
+    // Discover services via orchestration
+    if (!consumer.discoverService(TARGET_SERVICE, interfaces, metadata)) {
+        cerr << "Failed to discover any matching services" << endl;
+        return 1;
+    }
+    
+    // Get discovered services
+    auto services = consumer.getDiscoveredServices(TARGET_SERVICE);
+    cout << "Discovered " << services.size() << " services for " << TARGET_SERVICE << endl;
+    
+    // Print information about discovered services
+    for (size_t i = 0; i < services.size(); i++) {
+        const auto& service = services[i];
+        cout << "\nService #" << (i+1) << ":" << endl;
+        cout << "  Definition: " << service.serviceDefinition << endl;
+        cout << "  Provider: " << service.providerName << endl;
+        cout << "  Address: " << service.providerAddress << ":" << service.providerPort << endl;
+        cout << "  URI: " << service.serviceUri << endl;
+        cout << "  Interface: " << service.interfaceType << endl;
+        cout << "  Secure: " << (service.isSecure ? "Yes" : "No") << endl;
+        
+        if (!service.metadata.empty()) {
+            cout << "  Metadata: " << endl;
+            for (const auto& [key, value] : service.metadata) {
+                cout << "    " << key << ": " << value << endl;
+            }
+        }
+    }
+    
+    // Check if we found any services
+    if (services.empty()) {
+        cerr << "No services found to consume." << endl;
+        return 1;
+    }
 
 
     while (true) {

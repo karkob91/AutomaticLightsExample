@@ -4,9 +4,9 @@ ApplicationServiceInterface::ApplicationServiceInterface()
 {
 }
 
-ApplicationServiceInterface::ApplicationServiceInterface(string ini_file)
+ApplicationServiceInterface::ApplicationServiceInterface(string config_file)
 {
-    init_ApplicationServiceInterface(ini_file);
+    init_ApplicationServiceInterface(config_file);
 }
 
 ApplicationServiceInterface::~ApplicationServiceInterface()
@@ -39,92 +39,54 @@ int ApplicationServiceInterface::Callback_Serve_HTTPs_GET(const char *Id, string
 }
 
 bool ApplicationServiceInterface::LoadConfigFile(const string& filename) {
-    ifstream file(filename);
-    if (!file.is_open()) {
-        printf("Error: Cannot open config file: %s\n", filename.c_str());
+    try {
+        // Open the file
+        std::ifstream configFile(filename);
+        if (!configFile.is_open()) {
+            std::cerr << "Error: Could not open configuration file: " << filename << std::endl;
+            return false;
+        }
+        
+        // Parse JSON from file
+        // configFile >> config;
+        
+        // Output parsed config for debugging
+        // std::cout << "Loaded configuration from " << filename << ":" << std::endl;
+        // std::cout << config.dump(2) << std::endl;
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Error parsing JSON configuration: " << e.what() << std::endl;
         return false;
     }
-
-    string line;
-    string currentSection = "";
-    
-    while (getline(file, line)) {
-        // Skip empty lines and comments
-        if (line.empty() || line[0] == ';' || line[0] == '#')
-            continue;
-
-        // Trim whitespace
-        size_t start = line.find_first_not_of(" \t");
-        if (start == string::npos) continue; // Empty line
-        
-        size_t end = line.find_last_not_of(" \t");
-        line = line.substr(start, end - start + 1);
-
-        // Section header
-        if (line[0] == '[' && line[line.length() - 1] == ']') {
-            currentSection = line.substr(1, line.length() - 2);
-            continue;
-        }
-
-        // Key-value pairs
-        size_t equalPos = line.find('=');
-        if (equalPos != string::npos) {
-            string key = line.substr(0, equalPos);
-            string value = line.substr(equalPos + 1);
-            
-            // Trim whitespace
-            start = key.find_first_not_of(" \t");
-            end = key.find_last_not_of(" \t");
-            key = key.substr(start, end - start + 1);
-            
-            start = value.find_first_not_of(" \t");
-            if (start != string::npos) {
-                end = value.find_last_not_of(" \t");
-                value = value.substr(start, end - start + 1);
-            } else {
-                value = "";
-            }
-
-            // Store with section prefix
-            configValues[currentSection + ":" + key] = value;
-        }
-    }
-
-    // Dump loaded configuration for debugging
-    printf("Loaded configuration:\n");
-    for (const auto& entry : configValues) {
-        printf("[%s]=[%s]\n", entry.first.c_str(), entry.second.c_str());
-    }
-
-    return true;
 }
 
 string ApplicationServiceInterface::GetConfigValue(const string& section, const string& key, const string& defaultValue) {
-    string lookupKey = section + ":" + key;
-    auto it = configValues.find(lookupKey);
-    if (it != configValues.end()) {
-        return it->second;
+    try {
+        if (config.contains(section) && config[section].contains(key)) {
+            return config[section][key].get<string>();
+        }
+    } catch (...) {
+        // If any error occurs, return the default value
     }
     return defaultValue;
 }
 
 int ApplicationServiceInterface::GetConfigValueInt(const string& section, const string& key, int defaultValue) {
-    string value = GetConfigValue(section, key, "");
-    if (!value.empty()) {
-        try {
-            return stoi(value);
-        } catch (...) {
-            // Return default if conversion fails
-            printf("Warning: Failed to convert '%s' to integer, using default: %d\n", value.c_str(), defaultValue);
+    try {
+        if (config.contains(section) && config[section].contains(key)) {
+            return config[section][key].get<int>();
         }
+    } catch (...) {
+        // If any error occurs, return the default value
     }
     return defaultValue;
 }
 
-bool ApplicationServiceInterface::init_ApplicationServiceInterface(string ini_file)
+bool ApplicationServiceInterface::init_ApplicationServiceInterface(string config_file)
 {
-    if (!LoadConfigFile(ini_file)) {
-        printf("Error: Cannot load ApplicationServiceInterface.ini\n");
+    if (!LoadConfigFile(config_file)) {
+        printf("Error: Cannot load configuration file: %s\n", config_file.c_str());
         return false;
     }
 

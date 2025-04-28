@@ -1,0 +1,26 @@
+{
+    "Server": {
+      "or_base_uri": "http://172.25.164.36:8441/orchestrator/orchestration",
+      "or_base_uri_https": "https://172.25.164.36:8441/orchestrator/orchestration",
+      "address": "10.0.0.12",
+      "address6": "[::1]",
+      "port": 8454
+    },
+    "System": {
+      "system_name": "ExampleConsumerSystem"
+    },
+    "Security": {
+      "use_secure": false,
+      "cert_path": "certs/consumer.crt",
+      "key_path": "certs/consumer.key",
+      "ca_path": "certs/ca.crt",
+      "token": ""
+    },
+    "Orchestration": {
+      "timeout": 10,
+      "max_retries": 3,
+      "retry_interval": 5,
+      "ping_providers": true,
+      "trigger_intercloud": false
+    }
+  }

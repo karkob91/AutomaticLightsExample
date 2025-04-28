@@ -11,7 +11,7 @@
 
 
 SensorHandler::SensorHandler(){
-	if (!init_ApplicationServiceInterface("ApplicationServiceInterface.ini")) {
+	if (!init_ApplicationServiceInterface("ApplicationServiceInterface.json")) {
 		printf("Error: Unable to start Service Registry Interface!\n");
 	}
 

@@ -27,8 +27,8 @@ class ApplicationServiceInterface :
     Https_Handler
 {
 private:
-    // Replace dictionary with a map to store configuration
-    map<string, string> configValues;
+    // Configuration values
+    json config;
 
     string SR_BASE_URI;
     string SR_BASE_URI_HTTPS;
@@ -38,17 +38,17 @@ private:
     string URI;
     string HTTPsURI;
 
-    // New methods for loading/saving config
+    // Methods for loading/saving config
     bool LoadConfigFile(const string& filename);
     string GetConfigValue(const string& section, const string& key, const string& defaultValue);
     int GetConfigValueInt(const string& section, const string& key, int defaultValue);
 
 public:
-    ApplicationServiceInterface(string ini_file);
+    ApplicationServiceInterface(string config_file);
     ApplicationServiceInterface();
     ~ApplicationServiceInterface();
 
-    bool init_ApplicationServiceInterface(string ini_file);
+    bool init_ApplicationServiceInterface(string config_file);
     int deinit();
     int registerToServiceRegistry(Arrowhead_Data_ext &stAH_data, bool _bSecureArrowheadInterface, bool _bProviderIsSecure);
     int unregisterFromServiceRegistry(Arrowhead_Data_ext &stAH_data, bool _bSecureArrowheadInterface, bool _bProviderIsSecure);
