@@ -3,8 +3,13 @@
 #include <memory>
 #include <iostream>
 #include <chrono> // For time measurement
-#include "ProviderExample/src/Provider/SensorHandler.h"
-#include "ProviderExample/src/Provider/ServiceConsumer.h"
+#include "ArrowheadManager.h"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <thread>
+#include <chrono>
+#include <boost/beast/http.hpp>
 // #include <windows.h>
 
 // Declare the unique pointer for HelloWorldSystem
@@ -50,118 +55,146 @@ int main()
 
     // DEZYNE 
 
-    bool bSecureProviderInterface = false; //Enables HTTPS interface on the application service (with token enabled)
-    bool bSecureArrowheadInterface = false;
+    namespace http = boost::beast::http;
 
-    SensorHandler oSensorHandler;
-
-//SenML format
-//todo:
-//generate own measured value into "measuredValue"
-//"value" should be periodically updated
-//"sLinuxEpoch" should be periodically updated
-
-     std::string measuredValue; //JSON - SENML format
-     time_t linuxEpochTime = std::time(0);
-     std::string sLinuxEpoch = std::to_string(static_cast<uint64_t>(linuxEpochTime));
-
-     double value = 26.0;
-//convert double to string
-     std::ostringstream streamObj;
-     streamObj << std::fixed;
-     streamObj << std::setprecision(1);
-     streamObj << value;
-     std::string sValue = streamObj.str();
-
-     measuredValue =
-          "{"
-               "\"e\":[{"
-                    "\"n\": \"this_is_the_sensor_id\","
-                    "\"v\":" + sValue +","
-                    "\"t\": \"" + sLinuxEpoch + "\""
-                    "}],"
-               "\"bn\": \"this_is_the_sensor_id\","
-               "\"bu\": \"Celsius\""
-          "}";
-
-//do not modify below this
-
-     oSensorHandler.processProvider(measuredValue, bSecureProviderInterface, bSecureArrowheadInterface);
-
-    // autoLightsSystem->lightSensor.out.LowLight();
-
-
-    cout << "==================================================================" << endl;
-    cout << "Arrowhead Framework Service Consumer Example" << endl;
-    cout << "==================================================================" << endl;
+    std::cout << "==================================================================" << std::endl;
+    std::cout << "Arrowhead Framework Manager with HTTP Server Example" << std::endl;
+    std::cout << "==================================================================" << std::endl;
     
-    // Initialize the service consumer with configuration file
-    ServiceConsumer consumer("ServiceCon
-        sumer.json");
+    // Define system information
+    const std::string SYSTEM_NAME = "ExampleSystem";
+    const std::string SYSTEM_ADDRESS = "127.0.0.1";  // Change to your actual IP address
+    const int SYSTEM_PORT = 8080;
+    const std::string MAC_ADDRESS = "00:11:22:33:44:55";  // Example MAC address
     
-    // Configure our system information for orchestration
-    const string OUR_SYSTEM_NAME = "ExampleConsumerSystem";
-    const string OUR_ADDRESS = "10.0.0.12";  // Change to your actual IP address
-    const int OUR_PORT = 8454;
-    
-    cout << "Initializing service consumer..." << endl;
-    
-    // Initialize consumer with our system information
-    if (!consumer.initConsumer(OUR_SYSTEM_NAME, OUR_ADDRESS, OUR_PORT)) {
-        cerr << "Failed to initialize service consumer" << endl;
-        return 1;
-    }
-    
-    cout << "Service consumer initialized successfully." << endl;
-    
-    // Define the service we want to discover
-    const string TARGET_SERVICE = "IndoorTemperatureProviderExample";
-    
-    // Define interfaces we accept
-    vector<string> interfaces = {"HTTP-INSECURE-JSON"};
-    
-    // Define metadata requirements
-    map<string, string> metadata = {
-        {"unit", "Celsius"}
+    // Define services provided by this system
+    std::vector<std::pair<std::string, std::string>> providedServices = {
+        {"api-armed", "/api_armed"},
+        {"api-disarmed", "/api_disarmed"},
+        {"api-arming", "/api_arming"},
+        {"api-detected", "/api_detected"},
+        {"console-services", "/console_services"}
     };
     
-    cout << "\nDiscovering services..." << endl;
+    // Define services consumed by this system
+    std::vector<std::string> consumedServices = {
+        "api-arm"
+    };
     
-    // Discover services via orchestration
-    if (!consumer.discoverService(TARGET_SERVICE, interfaces, metadata)) {
-        cerr << "Failed to discover any matching services" << endl;
-        return 1;
-    }
+    // Create ArrowheadManager instance
+    ArrowheadManager manager(
+        SYSTEM_NAME,
+        SYSTEM_ADDRESS,
+        SYSTEM_PORT,
+        MAC_ADDRESS,
+        providedServices,
+        consumedServices
+    );
     
-    // Get discovered services
-    auto services = consumer.getDiscoveredServices(TARGET_SERVICE);
-    cout << "Discovered " << services.size() << " services for " << TARGET_SERVICE << endl;
+    // Set Arrowhead server address (change to match your Arrowhead deployment)
+    const std::string ARROWHEAD_ADDRESS = "172.25.164.36";
+    const int SERVICE_REGISTRY_PORT = 8443;
+    const int SYSTEM_REGISTRY_PORT = 8437;
     
-    // Print information about discovered services
-    for (size_t i = 0; i < services.size(); i++) {
-        const auto& service = services[i];
-        cout << "\nService #" << (i+1) << ":" << endl;
-        cout << "  Definition: " << service.serviceDefinition << endl;
-        cout << "  Provider: " << service.providerName << endl;
-        cout << "  Address: " << service.providerAddress << ":" << service.providerPort << endl;
-        cout << "  URI: " << service.serviceUri << endl;
-        cout << "  Interface: " << service.interfaceType << endl;
-        cout << "  Secure: " << (service.isSecure ? "Yes" : "No") << endl;
+    std::cout << "Setting up Arrowhead connection..." << std::endl;
+    manager.setArrowheadServiceRegistry(ARROWHEAD_ADDRESS, SERVICE_REGISTRY_PORT);
+    manager.setArrowheadSystemRegistry(ARROWHEAD_ADDRESS, SYSTEM_REGISTRY_PORT);
+    
+    // Custom handler for the /api_armed endpoint
+    manager.on("/api_armed", "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+        // Create JSON response
+        std::string jsonResponse = R"({
+            "status": "ARMED",
+            "timestamp": ")" + std::to_string(std::time(nullptr)) + R"(",
+            "message": "System is armed and ready"
+        })";
         
-        if (!service.metadata.empty()) {
-            cout << "  Metadata: " << endl;
-            for (const auto& [key, value] : service.metadata) {
-                cout << "    " << key << ": " << value << endl;
-            }
-        }
-    }
+        res.result(http::status::ok);
+        res.set(http::field::content_type, "application/json");
+        res.body() = jsonResponse;
+        res.prepare_payload();
+        
+        std::cout << "Handled /api_armed request" << std::endl;
+    });
     
-    // Check if we found any services
-    if (services.empty()) {
-        cerr << "No services found to consume." << endl;
+    // Custom handler for the /api_disarmed endpoint
+    manager.on("/api_disarmed", "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+        // Create JSON response
+        std::string jsonResponse = R"({
+            "status": "DISARMED",
+            "timestamp": ")" + std::to_string(std::time(nullptr)) + R"(",
+            "message": "System is disarmed"
+        })";
+        
+        res.result(http::status::ok);
+        res.set(http::field::content_type, "application/json");
+        res.body() = jsonResponse;
+        res.prepare_payload();
+        
+        std::cout << "Handled /api_disarmed request" << std::endl;
+    });
+    
+    // Custom handler for the /console_services endpoint
+    manager.on("/console_services", "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+        // Create JSON response
+        std::string jsonResponse = R"({
+            "action": "SHOW_SERVICES",
+            "timestamp": ")" + std::to_string(std::time(nullptr)) + R"(",
+            "duration": 10
+        })";
+        
+        res.result(http::status::ok);
+        res.set(http::field::content_type, "application/json");
+        res.body() = jsonResponse;
+        res.prepare_payload();
+        
+        std::cout << "Handled /console_services request" << std::endl;
+    });
+    
+    // Start the HTTP server
+    std::cout << "Starting HTTP server on port " << SYSTEM_PORT << "..." << std::endl;
+    if (!manager.startServer()) {
+        std::cerr << "Failed to start HTTP server. Exiting." << std::endl;
         return 1;
     }
-
+    
+    std::cout << "HTTP server started successfully." << std::endl;
+    
+    // Register with Arrowhead
+    std::cout << "\nRegistering system and services with Arrowhead..." << std::endl;
+    bool ahReady = false;
+    
+    // Main loop - similar to your ESP32 implementation
+    for (int i = 0; i < 30; i++) { // Run for 30 iterations for this example
+        // Try to register with Arrowhead
+        if (manager.registerSystemAndServices()) {
+            if (!ahReady) {
+                std::cout << "Successfully registered with Arrowhead!" << std::endl;
+                ahReady = true;
+            }
+            
+            // If registered, we could handle button presses or other inputs here
+            // For this example, we'll just simulate some service consumption
+            if (i % 5 == 0) { // Every 5 seconds, consume a service
+                std::cout << "\nConsuming 'api-arm' service with PIN 1234..." << std::endl;
+                bool result = manager.consumeService("api-arm", "pin", 1234);
+                std::cout << "Result: " << (result ? "Valid PIN" : "Invalid PIN") << std::endl;
+            }
+        } else if (ahReady) {
+            ahReady = false;
+            std::cout << "Lost connection to Arrowhead, attempting to reconnect..." << std::endl;
+        }
+        
+        // Sleep for a second before next iteration
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        
+        // Print a status message for the example
+        std::cout << "Server running... (iteration " << i + 1 << " of 30)" << std::endl;
+    }
+    
+    // Stop the server when done
+    std::cout << "\nStopping HTTP server..." << std::endl;
+    manager.stopServer();
 
     while (true) {
         // Update register loop component to for example - check if timer has elapsed

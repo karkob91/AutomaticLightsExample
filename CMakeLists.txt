@@ -116,14 +116,12 @@ file(GLOB ROOT_HEADERS "*.hh" "*.h")
 
 # Find provider source files
 file(GLOB PROVIDER_SOURCES 
-    "${CMAKE_SOURCE_DIR}/ProviderExample/src/Provider/*.cpp"
-    "${CMAKE_SOURCE_DIR}/ProviderExample/src/Interface/*.cpp"
+    "${CMAKE_SOURCE_DIR}/Arrowhead/*.cpp"
 )
 
 # Find provider header files
 file(GLOB PROVIDER_HEADERS
-    "${CMAKE_SOURCE_DIR}/ProviderExample/src/Provider/*.h"
-    "${CMAKE_SOURCE_DIR}/ProviderExample/src/Interface/*.hpp"
+    "${CMAKE_SOURCE_DIR}/Arrowhead/*.h"
 )
 
 # Debug output
@@ -143,8 +141,7 @@ add_dependencies(${PROJECT_NAME} generate_dezyne_code)
 target_include_directories(${PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"              # The generated header files are here
     "${CMAKE_SOURCE_DIR}"                      # The root directory for other .cpp and .hh files
-    "${CMAKE_SOURCE_DIR}/ProviderExample"      # Provider Example root
-    "${CMAKE_SOURCE_DIR}/ProviderExample/src"  # Provider Example src directory
+    "${CMAKE_SOURCE_DIR}/Arrowhead"      # Provider Example root
 )
 
 # Add generated sources conditionally after generation
