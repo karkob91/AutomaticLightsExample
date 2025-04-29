@@ -2,33 +2,16 @@
     "system": {
         "name": "ExampleSystem",
         "address": "127.0.0.1",
-        "port": 8080,
+        "port": 4000,
         "macAddress": "00:11:22:33:44:55"
     },
     "providedServices": [
         {
             "definition": "api-armed",
             "uri": "/api_armed"
-        },
-        {
-            "definition": "api-disarmed",
-            "uri": "/api_disarmed"
-        },
-        {
-            "definition": "api-arming",
-            "uri": "/api_arming"
-        },
-        {
-            "definition": "api-detected",
-            "uri": "/api_detected"
-        },
-        {
-            "definition": "console-services",
-            "uri": "/console_services"
         }
     ],
     "consumedServices": [
-        "api-arm"
     ],
     "coreSystems": {
         "serviceRegistry": {

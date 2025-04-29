@@ -77,25 +77,25 @@ int main()
         res.body() = jsonResponse;
         res.prepare_payload();
         
-        std::cout << "Handled /api_disarmed request" << std::endl;
+        std::cout << "Handled /api_armed request" << std::endl;
     });
     
-    // Custom handler for the /console_services endpoint
-    manager.on("/console_services", "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
-        // Create JSON response
-        std::string jsonResponse = R"({
-            "action": "SHOW_SERVICES",
-            "timestamp": ")" + std::to_string(std::time(nullptr)) + R"(",
-            "duration": 10
-        })";
+    // // Custom handler for the /console_services endpoint
+    // manager.on("/console_services", "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+    //     // Create JSON response
+    //     std::string jsonResponse = R"({
+    //         "action": "SHOW_SERVICES",
+    //         "timestamp": ")" + std::to_string(std::time(nullptr)) + R"(",
+    //         "duration": 10
+    //     })";
         
-        res.result(http::status::ok);
-        res.set(http::field::content_type, "application/json");
-        res.body() = jsonResponse;
-        res.prepare_payload();
+    //     res.result(http::status::ok);
+    //     res.set(http::field::content_type, "application/json");
+    //     res.body() = jsonResponse;
+    //     res.prepare_payload();
         
-        std::cout << "Handled /console_services request" << std::endl;
-    });
+    //     std::cout << "Handled /console_services request" << std::endl;
+    // });
     
     // Start the HTTP server
     std::cout << "Starting HTTP server on port " << config.getSystem().port << "..." << std::endl;

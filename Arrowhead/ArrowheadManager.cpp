@@ -205,9 +205,9 @@ json ArrowheadManager::createSystemRegistrationJson() {
 }
 
 bool ArrowheadManager::registerSystem() {
-    if (!queryAndDeregisterAllSystems()) {
-        return false;
-    }
+    // if (!queryAndDeregisterAllSystems()) {
+    //     return false;
+    // }
     
     const auto& systemRegistry = config_.getCoreSystems().systemRegistry;
     
@@ -266,9 +266,9 @@ json ArrowheadManager::createServiceRegistrationJson(const std::string& serviceD
 }
 
 bool ArrowheadManager::registerServices() {
-    if (!deregisterMatchingServices()) {
-        return false;
-    }
+    // if (!deregisterMatchingServices()) {
+    //     return false;
+    // }
     
     const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
     const auto& providedServices = config_.getProvidedServices();

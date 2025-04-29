@@ -53,6 +53,13 @@ public:
                 target += "?" + query;
             }
             
+            // Print the full request URL as would be seen in a browser
+            std::cout << method << " " << protocol << "://" << host;
+            if ((protocol == "http" && port != 80) || (protocol == "https" && port != 443)) {
+                std::cout << ":" << port;
+            }
+            std::cout << target << std::endl;
+            
             // Set up an HTTP request
             http::request<http::string_body> req{method, target, 11};
             req.set(http::field::host, host);
@@ -70,13 +77,6 @@ public:
                 req.prepare_payload();
             }
             
-            // Log the full request if a callback is set
-            if (logCallback_) {
-                std::ostringstream oss;
-                oss << req;
-                logCallback_("Outgoing HTTP Request:\n" + oss.str());
-            }
-            
             // Send the HTTP request
             http::write(stream, req);
             
@@ -89,16 +89,17 @@ public:
             // Receive the HTTP response
             http::read(stream, buffer, res);
             
-            // Log the full response if a callback is set
-            if (logCallback_) {
-                std::ostringstream oss;
-                oss << res;
-                logCallback_("Incoming HTTP Response:\n" + oss.str());
-            }
-            
             // Fill in the response struct
             response.statusCode = res.result_int();
             response.body = res.body();
+            
+            // Print status code
+            std::cout << "Status code: " << response.statusCode << std::endl;
+            
+            // If status code is not 200, print the response payload
+            if (response.statusCode != 200) {
+                std::cout << "Response payload: " << response.body << std::endl;
+            }
             
             // Extract headers
             for (const auto& field : res) {
@@ -119,6 +120,9 @@ public:
             }
             response.statusCode = 0;
             response.body = "Error: " + std::string(e.what());
+            
+            // Print error information
+            std::cout << "Request failed with error: " << e.what() << std::endl;
         }
         
         return response;
