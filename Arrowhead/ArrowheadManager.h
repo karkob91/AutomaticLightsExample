@@ -2,10 +2,15 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <memory>
+#include <functional>
+#include <optional>
 #include <nlohmann/json.hpp>
+#include "ArrowheadConfig.h"
+#include "HttpClient.h"
 #include "ArrowheadServer.h"
+
+namespace arrowhead {
 
 /**
  * @brief Structure to hold discovered service information
@@ -27,6 +32,12 @@ struct ServiceInfo {
 class ArrowheadManager {
 public:
     /**
+     * @brief Construct a new Arrowhead Manager from a configuration
+     * @param config The configuration object
+     */
+    explicit ArrowheadManager(const ArrowheadConfig& config);
+    
+    /**
      * @brief Construct a new Arrowhead Manager
      * 
      * @param systemName The name of this system in the Arrowhead framework
@@ -46,18 +57,18 @@ public:
     /**
      * @brief Set the Arrowhead service registry address
      * 
-     * @param address The address of the Arrowhead service registry
+     * @param host The address of the Arrowhead service registry
      * @param port The port of the Arrowhead service registry
      */
-    void setArrowheadServiceRegistry(const std::string& address, int port);
+    void setServiceRegistry(const std::string& host, int port);
     
     /**
      * @brief Set the Arrowhead system registry address
      * 
-     * @param address The address of the Arrowhead system registry 
+     * @param host The address of the Arrowhead system registry 
      * @param port The port of the Arrowhead system registry
      */
-    void setArrowheadSystemRegistry(const std::string& address, int port);
+    void setSystemRegistry(const std::string& host, int port);
     
     /**
      * @brief Register the system and its services with Arrowhead
@@ -95,21 +106,21 @@ public:
      * 
      * @return true if registered
      */
-    bool isSystemRegistered() const { return systemRegistered; }
+    bool isSystemRegistered() const { return systemRegistered_; }
     
     /**
      * @brief Check if services are registered with Arrowhead
      * 
      * @return true if registered
      */
-    bool areServicesRegistered() const { return servicesRegistered; }
+    bool areServicesRegistered() const { return servicesRegistered_; }
     
     /**
      * @brief Check if required services were discovered
      * 
      * @return true if discovered
      */
-    bool areServicesDiscovered() const { return servicesDiscovered; }
+    bool areServicesDiscovered() const { return servicesDiscovered_; }
 
     /**
      * @brief Register a handler for an HTTP endpoint
@@ -142,58 +153,42 @@ public:
     bool isServerRunning() const;
     
 private:
-    // State tracking
-    bool systemRegistered = false;
-    bool arrowheadOnline = false;
-    bool servicesRegistered = false;
-    bool servicesDiscovered = false;
+    // Configuration
+    ArrowheadConfig config_;
     
-    // System information
-    std::string systemName;
-    std::string systemAddress;
-    std::string macAddress;
-    int systemPort;
-    
-    // Service information
-    const std::vector<std::pair<std::string, std::string>> provided_services;
-    const std::vector<std::string> consumed_services;
-    std::vector<ServiceInfo> discovered_services;
-    
-    // Arrowhead connection information
-    std::string arrowheadAddress = "127.0.0.1";
-    int serviceRegistryPort = 8443;
-    int systemRegistryPort = 8437;
-    std::string serviceRegistryURL;
-    std::string systemRegistryURL;
+    // HTTP client for Arrowhead API calls
+    HttpClient httpClient_;
     
     // HTTP server for handling service endpoints
-    std::unique_ptr<ArrowheadServer> server;
+    std::unique_ptr<ArrowheadServer> server_;
+    
+    // State tracking
+    bool systemRegistered_ = false;
+    bool servicesRegistered_ = false;
+    bool servicesDiscovered_ = false;
+    
+    // Discovered services
+    std::vector<ServiceInfo> discoveredServices_;
     
     // Helper methods
-    std::string encodeUrl(const std::string& str);
-    bool deregisterMatchingServices();
+    bool ping();
     bool registerSystem();
     bool registerServices();
-    bool httpPing();
-    bool deregisterSystem(const std::string& systemName, 
-                          const std::string& address, 
-                          int port);
-    bool queryAndDeregisterAllSystems();
+    bool deregisterService(const std::string& address, 
+                          const std::string& port, 
+                          const std::string& serviceDefinition, 
+                          const std::string& serviceUri, 
+                          const std::string& systemName);
+    bool deregisterMatchingServices();
     bool queryAndDeregisterAllServices(const std::string& serviceDefinition, 
                                       const std::string& serviceUri);
-    bool deregisterService(const std::string& address, 
-                           const std::string& port, 
-                           const std::string& serviceDefinition, 
-                           const std::string& serviceUri, 
-                           const std::string& systemName);
+    bool queryAndDeregisterAllSystems();
+    bool deregisterSystem(const std::string& systemName, 
+                         const std::string& address, 
+                         int port);
     bool discoverServices();
     
-    // HTTP utility functions
-    int httpGet(const std::string& url, std::string& response);
-    int httpPost(const std::string& url, const std::string& payload, std::string& response);
-    int httpDelete(const std::string& url, std::string& response);
-    
-    // JSON helper functions
+    // JSON helper methods
     using json = nlohmann::json;
     json createSystemRegistrationJson();
     json createServiceRegistrationJson(const std::string& serviceDefinition, 
@@ -201,4 +196,9 @@ private:
     json createServiceQueryJson(const std::string& serviceDefinition);
     bool parseServiceQueryResponse(const std::string& response, 
                                  const std::string& serviceDefinition);
+    
+    // Logging helper
+    void log(const std::string& message);
 };
+
+} // namespace arrowhead

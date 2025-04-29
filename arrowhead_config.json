@@ -1,0 +1,47 @@
+{
+    "system": {
+        "name": "ExampleSystem",
+        "address": "127.0.0.1",
+        "port": 8080,
+        "macAddress": "00:11:22:33:44:55"
+    },
+    "providedServices": [
+        {
+            "definition": "api-armed",
+            "uri": "/api_armed"
+        },
+        {
+            "definition": "api-disarmed",
+            "uri": "/api_disarmed"
+        },
+        {
+            "definition": "api-arming",
+            "uri": "/api_arming"
+        },
+        {
+            "definition": "api-detected",
+            "uri": "/api_detected"
+        },
+        {
+            "definition": "console-services",
+            "uri": "/console_services"
+        }
+    ],
+    "consumedServices": [
+        "api-arm"
+    ],
+    "coreSystems": {
+        "serviceRegistry": {
+            "protocol": "http",
+            "host": "172.25.164.36",
+            "port": 8443,
+            "path": "/serviceregistry"
+        },
+        "systemRegistry": {
+            "protocol": "http",
+            "host": "172.25.164.36",
+            "port": 8437,
+            "path": "/systemregistry"
+        }
+    }
+}

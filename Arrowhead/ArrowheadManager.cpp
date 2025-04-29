@@ -1,56 +1,28 @@
 #include "ArrowheadManager.h"
 #include <iostream>
-#include <sstream>
-#include <iomanip>
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
+#include <algorithm>
+#include <cctype>
 
-namespace beast = boost::beast;
-namespace http = beast::http;
-namespace net = boost::asio;
-using tcp = net::ip::tcp;
+namespace arrowhead {
+
 using json = nlohmann::json;
 
-// Logging helper function - replace with your logging framework if needed
-void log(const std::string& message) {
-    std::cout << message << std::endl;
-}
-
-ArrowheadManager::ArrowheadManager(
-    const std::string& systemName, 
-    const std::string& systemAddress, 
-    int systemPort,
-    const std::string& macAddress,
-    const std::vector<std::pair<std::string, std::string>>& provided_services,
-    const std::vector<std::string>& consumed_services)
-    : systemName(systemName), 
-      systemAddress(systemAddress), 
-      systemPort(systemPort), 
-      macAddress(macAddress),
-      provided_services(provided_services), 
-      consumed_services(consumed_services) 
+// Constructor from configuration
+ArrowheadManager::ArrowheadManager(const ArrowheadConfig& config)
+    : config_(config)
 {
-    // Default Arrowhead address settings
-    arrowheadAddress = "127.0.0.1";
-    serviceRegistryPort = 8443;
-    systemRegistryPort = 8437;
+    // Set up HTTP client with logging
+    httpClient_.setLogCallback([this](const std::string& message) {
+        this->log(message);
+    });
     
-    // Construct URLs
-    setArrowheadServiceRegistry(arrowheadAddress, serviceRegistryPort);
-    setArrowheadSystemRegistry(arrowheadAddress, systemRegistryPort);
-    
-    // Create the HTTP server on the specified port
-    server = std::make_unique<ArrowheadServer>(systemPort);
+    // Create the HTTP server
+    server_ = std::make_unique<ArrowheadServer>(config_.getSystem().port);
     
     // Register default handlers for all provided services
-    for (const auto& service : provided_services) {
-        std::string endpoint = service.second;
-        
+    for (const auto& service : config_.getProvidedServices()) {
         // Register a default GET handler
-        server->on(endpoint, "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+        server_->on(service.uri, "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
             res.result(http::status::ok);
             res.set(http::field::content_type, "application/json");
             res.body() = "{}";  // Empty JSON object
@@ -59,417 +31,174 @@ ArrowheadManager::ArrowheadManager(
     }
 }
 
-void ArrowheadManager::setArrowheadServiceRegistry(const std::string& address, int port) {
-    arrowheadAddress = address;
-    serviceRegistryPort = port;
-    serviceRegistryURL = "http://" + address + ":" + std::to_string(port) + "/serviceregistry";
+// Constructor with direct parameters
+ArrowheadManager::ArrowheadManager(
+    const std::string& systemName, 
+    const std::string& systemAddress, 
+    int systemPort,
+    const std::string& macAddress,
+    const std::vector<std::pair<std::string, std::string>>& provided_services,
+    const std::vector<std::string>& consumed_services)
+{
+    // Create the configuration object
+    SystemConfig system;
+    system.name = systemName;
+    system.address = systemAddress;
+    system.port = systemPort;
+    system.macAddress = macAddress;
+    
+    // Convert provided services
+    std::vector<ServiceConfig> providedServices;
+    for (const auto& [definition, uri] : provided_services) {
+        ServiceConfig service;
+        service.definition = definition;
+        service.uri = uri;
+        providedServices.push_back(service);
+    }
+    
+    // Set default core systems
+    CoreSystemConfig coreSystems;
+    coreSystems.serviceRegistry.protocol = "http";
+    coreSystems.serviceRegistry.host = "127.0.0.1";
+    coreSystems.serviceRegistry.port = 8443;
+    coreSystems.serviceRegistry.path = "/serviceregistry";
+    
+    coreSystems.systemRegistry.protocol = "http";
+    coreSystems.systemRegistry.host = "127.0.0.1";
+    coreSystems.systemRegistry.port = 8437;
+    coreSystems.systemRegistry.path = "/systemregistry";
+    
+    // Create the configuration
+    config_ = ArrowheadConfig(system, providedServices, consumed_services, coreSystems);
+    
+    // Set up HTTP client with logging
+    httpClient_.setLogCallback([this](const std::string& message) {
+        this->log(message);
+    });
+    
+    // Create the HTTP server
+    server_ = std::make_unique<ArrowheadServer>(system.port);
+    
+    // Register default handlers for all provided services
+    for (const auto& service : providedServices) {
+        // Register a default GET handler
+        server_->on(service.uri, "GET", [](const http::request<http::string_body>& req, http::response<http::string_body>& res) {
+            res.result(http::status::ok);
+            res.set(http::field::content_type, "application/json");
+            res.body() = "{}";  // Empty JSON object
+            res.prepare_payload();
+        });
+    }
 }
 
-void ArrowheadManager::setArrowheadSystemRegistry(const std::string& address, int port) {
-    arrowheadAddress = address;
-    systemRegistryPort = port;
-    systemRegistryURL = "http://" + address + ":" + std::to_string(port) + "/systemregistry";
+void ArrowheadManager::setServiceRegistry(const std::string& host, int port) {
+    auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    const_cast<EndpointConfig&>(serviceRegistry).host = host;
+    const_cast<EndpointConfig&>(serviceRegistry).port = port;
+}
+
+void ArrowheadManager::setSystemRegistry(const std::string& host, int port) {
+    auto& systemRegistry = config_.getCoreSystems().systemRegistry;
+    const_cast<EndpointConfig&>(systemRegistry).host = host;
+    const_cast<EndpointConfig&>(systemRegistry).port = port;
 }
 
 void ArrowheadManager::on(const std::string& endpoint, const std::string& method, RequestHandler handler) {
-    server->on(endpoint, method, handler);
+    server_->on(endpoint, method, handler);
 }
 
 bool ArrowheadManager::startServer() {
-    return server->start();
+    return server_->start();
 }
 
 void ArrowheadManager::stopServer() {
-    server->stop();
+    server_->stop();
 }
 
 bool ArrowheadManager::isServerRunning() const {
-    return server->isRunning();
+    return server_->isRunning();
 }
 
 bool ArrowheadManager::registerSystemAndServices() {
-    if (this->provided_services.empty() && this->consumed_services.empty()) {
+    const auto& providedServices = config_.getProvidedServices();
+    const auto& consumedServices = config_.getConsumedServices();
+    
+    if (providedServices.empty() && consumedServices.empty()) {
         log("No services to register or discover.");
         return true;
     }
 
     static int pingRetries = 1;
 
-    if (!httpPing()) {
+    if (!ping()) {
         std::string text = "Pinging Arrowhead " + std::to_string(pingRetries) + "...";
         log(text);
         pingRetries += 1;
-        this->systemRegistered = false;
-        this->servicesRegistered = false;
-        this->servicesDiscovered = false;
+        systemRegistered_ = false;
+        servicesRegistered_ = false;
+        servicesDiscovered_ = false;
         return false;
     }
     pingRetries = 1;
 
     // First, try to register the system
-    if (!this->systemRegistered) {
+    if (!systemRegistered_) {
         log("Registering System...");
-        this->systemRegistered = registerSystem();
+        systemRegistered_ = registerSystem();
     }
 
     // Then register services
-    if (this->systemRegistered && !this->servicesRegistered) {
+    if (systemRegistered_ && !servicesRegistered_) {
         log("Registering Services...");
-        this->servicesRegistered = registerServices();
+        servicesRegistered_ = registerServices();
     }
 
     // Finally discover services
-    if (this->systemRegistered && this->servicesRegistered && !this->servicesDiscovered) {
+    if (systemRegistered_ && servicesRegistered_ && !servicesDiscovered_) {
         log("Discovering Services...");
-        this->servicesDiscovered = discoverServices();
+        servicesDiscovered_ = discoverServices();
     }
 
     // Return true only if all operations were successful
-    return this->systemRegistered && this->servicesRegistered && this->servicesDiscovered;
+    return systemRegistered_ && servicesRegistered_ && servicesDiscovered_;
 }
 
-bool ArrowheadManager::deregisterMatchingServices() {
-    if (this->provided_services.empty()) {
-        log("No provided services to deregister.");
-        return true;
-    }
+bool ArrowheadManager::ping() {
+    const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    std::string pingUrl = serviceRegistry.getUrl() + "/echo";
     
-    bool allSuccess = true;
-    for (const auto& service : this->provided_services) {
-        // De-register service using service definition and URI
-        if (!queryAndDeregisterAllServices(service.first, service.second)) {
-            allSuccess = false;
-        }
-    }
-    return allSuccess;
-}
-
-std::string ArrowheadManager::encodeUrl(const std::string& str) {
-    std::ostringstream escaped;
-    escaped.fill('0');
-    escaped << std::hex;
-
-    for (char c : str) {
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-            escaped << c;
-        } else if (c == ' ') {
-            escaped << '+';
-        } else {
-            escaped << '%' << std::setw(2) << int((unsigned char)c);
-        }
-    }
-
-    return escaped.str();
-}
-
-int ArrowheadManager::httpGet(const std::string& url, std::string& response) {
-    try {
-        // Parse the URL
-        std::string host;
-        std::string port;
-        std::string target;
-        std::string protocol;
-        
-        size_t protocolEnd = url.find("://");
-        if (protocolEnd != std::string::npos) {
-            protocol = url.substr(0, protocolEnd);
-            protocolEnd += 3; // skip over "://"
-        } else {
-            protocol = "http";
-            protocolEnd = 0;
-        }
-        
-        size_t hostEnd = url.find(':', protocolEnd);
-        if (hostEnd == std::string::npos) {
-            hostEnd = url.find('/', protocolEnd);
-            if (hostEnd == std::string::npos) {
-                host = url.substr(protocolEnd);
-                target = "/";
-            } else {
-                host = url.substr(protocolEnd, hostEnd - protocolEnd);
-                target = url.substr(hostEnd);
-            }
-            port = (protocol == "https") ? "443" : "80";
-        } else {
-            host = url.substr(protocolEnd, hostEnd - protocolEnd);
-            size_t portEnd = url.find('/', hostEnd);
-            if (portEnd == std::string::npos) {
-                port = url.substr(hostEnd + 1);
-                target = "/";
-            } else {
-                port = url.substr(hostEnd + 1, portEnd - (hostEnd + 1));
-                target = url.substr(portEnd);
-            }
-        }
-
-        // Set up Boost Beast for HTTP request
-        net::io_context ioc;
-        tcp::resolver resolver(ioc);
-        beast::tcp_stream stream(ioc);
-        
-        // Look up the domain name
-        auto const results = resolver.resolve(host, port);
-        
-        // Make the connection
-        stream.connect(results);
-        
-        // Set up an HTTP GET request
-        http::request<http::string_body> req{http::verb::get, target, 11};
-        req.set(http::field::host, host);
-        req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-
-        // ===== LOG THE FULL REQUEST =====
-        {
-            std::ostringstream oss;
-            oss << req; // boost::beast::http::request supports operator<<
-            log("Outgoing HTTP Request:\n" + oss.str());
-        }
-
-        // Send the HTTP request
-        http::write(stream, req);
-        
-        // Buffer for reading
-        beast::flat_buffer buffer;
-        
-        // Response object
-        http::response<http::string_body> res;
-        
-        // Receive the HTTP response
-        http::read(stream, buffer, res);
-
-        // ===== LOG THE FULL RESPONSE =====
-        {
-            std::ostringstream oss;
-            oss << res; // boost::beast::http::response supports operator<<
-            log("Incoming HTTP Response:\n" + oss.str());
-        }
-
-        // Get the response body
-        response = res.body();
-        
-        // Gracefully close the socket
-        beast::error_code ec;
-        stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-        
-        if(ec && ec != beast::errc::not_connected)
-            throw beast::system_error{ec};
-            
-        return res.result_int();
-    }
-    catch(std::exception const& e) {
-        log("Error during HTTP GET: " + std::string(e.what()));
-        return 0;
-    }
-}
-
-
-int ArrowheadManager::httpPost(const std::string& url, const std::string& payload, std::string& response) {
-    try {
-        // Parse the URL
-        std::string host;
-        std::string port;
-        std::string target;
-        std::string protocol;
-        
-        size_t protocolEnd = url.find("://");
-        if (protocolEnd != std::string::npos) {
-            protocol = url.substr(0, protocolEnd);
-            protocolEnd += 3; // skip over "://"
-        } else {
-            protocol = "http";
-            protocolEnd = 0;
-        }
-        
-        size_t hostEnd = url.find(':', protocolEnd);
-        if (hostEnd == std::string::npos) {
-            hostEnd = url.find('/', protocolEnd);
-            if (hostEnd == std::string::npos) {
-                host = url.substr(protocolEnd);
-                target = "/";
-            } else {
-                host = url.substr(protocolEnd, hostEnd - protocolEnd);
-                target = url.substr(hostEnd);
-            }
-            port = (protocol == "https") ? "443" : "80";
-        } else {
-            host = url.substr(protocolEnd, hostEnd - protocolEnd);
-            size_t portEnd = url.find('/', hostEnd);
-            if (portEnd == std::string::npos) {
-                port = url.substr(hostEnd + 1);
-                target = "/";
-            } else {
-                port = url.substr(hostEnd + 1, portEnd - (hostEnd + 1));
-                target = url.substr(portEnd);
-            }
-        }
-
-        // Set up Boost Beast for HTTP request
-        net::io_context ioc;
-        tcp::resolver resolver(ioc);
-        beast::tcp_stream stream(ioc);
-        
-        // Look up the domain name
-        auto const results = resolver.resolve(host, port);
-        
-        // Make the connection on the IP address we get from a lookup
-        stream.connect(results);
-        
-        // Set up an HTTP POST request message
-        http::request<http::string_body> req{http::verb::post, target, 11};
-        req.set(http::field::host, host);
-        req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-        req.set(http::field::content_type, "application/json");
-        req.body() = payload;
-        req.prepare_payload();
-        
-        // Send the HTTP request to the remote host
-        http::write(stream, req);
-        
-        // This buffer is used for reading and must be persisted
-        beast::flat_buffer buffer;
-        
-        // Declare a container to hold the response
-        http::response<http::string_body> res;
-        
-        // Receive the HTTP response
-        http::read(stream, buffer, res);
-        
-        // Get the response body
-        response = res.body();
-        
-        // Gracefully close the socket
-        beast::error_code ec;
-        stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-        
-        // not_connected happens sometimes so don't bother reporting it
-        if(ec && ec != beast::errc::not_connected)
-            throw beast::system_error{ec};
-            
-        return res.result_int();
-    }
-    catch(std::exception const& e) {
-        log("Error during HTTP POST: " + std::string(e.what()));
-        return 0;
-    }
-}
-
-int ArrowheadManager::httpDelete(const std::string& url, std::string& response) {
-    try {
-        // Parse the URL
-        std::string host;
-        std::string port;
-        std::string target;
-        std::string protocol;
-        
-        size_t protocolEnd = url.find("://");
-        if (protocolEnd != std::string::npos) {
-            protocol = url.substr(0, protocolEnd);
-            protocolEnd += 3; // skip over "://"
-        } else {
-            protocol = "http";
-            protocolEnd = 0;
-        }
-        
-        size_t hostEnd = url.find(':', protocolEnd);
-        if (hostEnd == std::string::npos) {
-            hostEnd = url.find('/', protocolEnd);
-            if (hostEnd == std::string::npos) {
-                host = url.substr(protocolEnd);
-                target = "/";
-            } else {
-                host = url.substr(protocolEnd, hostEnd - protocolEnd);
-                target = url.substr(hostEnd);
-            }
-            port = (protocol == "https") ? "443" : "80";
-        } else {
-            host = url.substr(protocolEnd, hostEnd - protocolEnd);
-            size_t portEnd = url.find('/', hostEnd);
-            if (portEnd == std::string::npos) {
-                port = url.substr(hostEnd + 1);
-                target = "/";
-            } else {
-                port = url.substr(hostEnd + 1, portEnd - (hostEnd + 1));
-                target = url.substr(portEnd);
-            }
-        }
-
-        // Set up Boost Beast for HTTP request
-        net::io_context ioc;
-        tcp::resolver resolver(ioc);
-        beast::tcp_stream stream(ioc);
-        
-        // Look up the domain name
-        auto const results = resolver.resolve(host, port);
-        
-        // Make the connection on the IP address we get from a lookup
-        stream.connect(results);
-        
-        // Set up an HTTP DELETE request message
-        http::request<http::string_body> req{http::verb::delete_, target, 11};
-        req.set(http::field::host, host);
-        req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-        
-        // Send the HTTP request to the remote host
-        http::write(stream, req);
-        
-        // This buffer is used for reading and must be persisted
-        beast::flat_buffer buffer;
-        
-        // Declare a container to hold the response
-        http::response<http::string_body> res;
-        
-        // Receive the HTTP response
-        http::read(stream, buffer, res);
-        
-        // Get the response body
-        response = res.body();
-        
-        // Gracefully close the socket
-        beast::error_code ec;
-        stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-        
-        // not_connected happens sometimes so don't bother reporting it
-        if(ec && ec != beast::errc::not_connected)
-            throw beast::system_error{ec};
-            
-        return res.result_int();
-    }
-    catch(std::exception const& e) {
-        log("Error during HTTP DELETE: " + std::string(e.what()));
-        return 0;
-    }
-}
-
-bool ArrowheadManager::httpPing() {
-    std::string response;
-    std::string pingUrl = this->serviceRegistryURL + "/echo";
+    HttpResponse response = httpClient_.get(
+        serviceRegistry.protocol,
+        serviceRegistry.host,
+        serviceRegistry.port,
+        serviceRegistry.path + "/echo");
     
-    int httpCode = httpGet(pingUrl, response);
-    
-    if (httpCode == 200) {
+    if (response.statusCode == 200) {
         return true;
     } else {
-        log("Ping Failed: HTTP Code " + std::to_string(httpCode));
+        log("Ping Failed: HTTP Code " + std::to_string(response.statusCode));
         return false;
     }
 }
 
 json ArrowheadManager::createSystemRegistrationJson() {
+    const auto& system = config_.getSystem();
+    
     json doc;
     
     json provider = json::object();
-    provider["address"] = this->systemAddress;
+    provider["address"] = system.address;
     provider["authenticationInfo"] = "";
     provider["deviceName"] = "Device";
-    provider["macAddress"] = this->macAddress;
+    provider["macAddress"] = system.macAddress;
 
-    json system = json::object();
-    system["address"] = this->systemAddress;
-    system["port"] = this->systemPort;
-    system["systemName"] = this->systemName;
+    json systemJson = json::object();
+    systemJson["address"] = system.address;
+    systemJson["port"] = system.port;
+    systemJson["systemName"] = system.name;
 
     doc["provider"] = provider;
-    doc["system"] = system;
+    doc["system"] = systemJson;
     doc["version"] = 1;
     
     return doc;
@@ -480,19 +209,24 @@ bool ArrowheadManager::registerSystem() {
         return false;
     }
     
-    std::string registrationUrl = this->systemRegistryURL + "/register";
+    const auto& systemRegistry = config_.getCoreSystems().systemRegistry;
+    
     json requestJson = createSystemRegistrationJson();
     std::string requestBody = requestJson.dump();
-    std::string responseBody;
     
-    int httpResponseCode = httpPost(registrationUrl, requestBody, responseBody);
+    HttpResponse response = httpClient_.post(
+        systemRegistry.protocol,
+        systemRegistry.host,
+        systemRegistry.port,
+        systemRegistry.path + "/register",
+        requestBody);
     
-    if (httpResponseCode == 201) {
+    if (response.statusCode == 201) {
         log("System successfully registered.");
         return true;
-    } else if (httpResponseCode == 400) {
+    } else if (response.statusCode == 400) {
         try {
-            json errorDoc = json::parse(responseBody);
+            json errorDoc = json::parse(response.body);
             std::string errorMessage = errorDoc["errorMessage"];
             if (errorMessage.find("already exists") != std::string::npos) {
                 log("System already registered. Treating as success.");
@@ -503,21 +237,23 @@ bool ArrowheadManager::registerSystem() {
         }
     }
 
-    log("Failed to register system, HTTP response code: " + std::to_string(httpResponseCode));
-    log(responseBody);
+    log("Failed to register system, HTTP response code: " + std::to_string(response.statusCode));
+    log(response.body);
     
     return false;
 }
 
 json ArrowheadManager::createServiceRegistrationJson(const std::string& serviceDefinition, const std::string& serviceUri) {
+    const auto& system = config_.getSystem();
+    
     json doc;
     
     doc["serviceDefinition"] = serviceDefinition;
     
     json providerSystem = json::object();
-    providerSystem["systemName"] = this->systemName;
-    providerSystem["address"] = this->systemAddress;
-    providerSystem["port"] = this->systemPort;
+    providerSystem["systemName"] = system.name;
+    providerSystem["address"] = system.address;
+    providerSystem["port"] = system.port;
     
     doc["providerSystem"] = providerSystem;
     doc["serviceUri"] = serviceUri;
@@ -534,22 +270,28 @@ bool ArrowheadManager::registerServices() {
         return false;
     }
     
+    const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    const auto& providedServices = config_.getProvidedServices();
+    
     bool allSuccess = true;
     
-    for (const auto& service : provided_services) {
-        std::string serviceRegistryRegisterURL = this->serviceRegistryURL + "/register";
-        json doc = createServiceRegistrationJson(service.first, service.second);
+    for (const auto& service : providedServices) {
+        json doc = createServiceRegistrationJson(service.definition, service.uri);
         std::string requestBody = doc.dump();
-        std::string responsePayload;
         
-        int httpResponseCode = httpPost(serviceRegistryRegisterURL, requestBody, responsePayload);
+        HttpResponse response = httpClient_.post(
+            serviceRegistry.protocol,
+            serviceRegistry.host,
+            serviceRegistry.port,
+            serviceRegistry.path + "/register",
+            requestBody);
         
-        if (httpResponseCode == 201) {
+        if (response.statusCode == 201) {
             log("Service successfully registered.");
             continue;
-        } else if (httpResponseCode == 400) {
+        } else if (response.statusCode == 400) {
             try {
-                json errorDoc = json::parse(responsePayload);
+                json errorDoc = json::parse(response.body);
                 std::string errorMessage = errorDoc["errorMessage"];
                 if (errorMessage.find("already exists") != std::string::npos) {
                     log("Service already exists. Treating as success.");
@@ -561,50 +303,85 @@ bool ArrowheadManager::registerServices() {
         }
         
         allSuccess = false;
-        log("Failed to register " + service.second + " service, HTTP response code: " + std::to_string(httpResponseCode));
-        log(responsePayload);
+        log("Failed to register " + service.uri + " service, HTTP response code: " + std::to_string(response.statusCode));
+        log(response.body);
         log(requestBody);
     }
     
     return allSuccess;
 }
 
-bool ArrowheadManager::deregisterService(const std::string& address, const std::string& port, 
-                                        const std::string& serviceDefinition, const std::string& serviceUri, 
-                                        const std::string& systemName) {
-    std::string deregistrationUrl = this->serviceRegistryURL + "/unregister";
-    deregistrationUrl += "?address=" + address;
-    deregistrationUrl += "&port=" + port;
-    deregistrationUrl += "&service_definition=" + serviceDefinition;
-    deregistrationUrl += "&service_uri=" + encodeUrl(serviceUri);
-    deregistrationUrl += "&system_name=" + systemName;
+bool ArrowheadManager::deregisterService(
+    const std::string& address, 
+    const std::string& port, 
+    const std::string& serviceDefinition, 
+    const std::string& serviceUri, 
+    const std::string& systemName) {
+    
+    const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    
+    // Construct the query string
+    std::string query = "address=" + address +
+                        "&port=" + port +
+                        "&service_definition=" + serviceDefinition +
+                        "&service_uri=" + HttpClient::urlEncode(serviceUri) +
+                        "&system_name=" + systemName;
     
     log("Attempting to deregister service: " + serviceDefinition);
     
-    std::string response;
-    int httpResponseCode = httpDelete(deregistrationUrl, response);
+    HttpResponse response = httpClient_.del(
+        serviceRegistry.protocol,
+        serviceRegistry.host,
+        serviceRegistry.port,
+        serviceRegistry.path + "/unregister",
+        query);
     
-    if (httpResponseCode == 200) {
+    if (response.statusCode == 200) {
         log("Service deregistered successfully: " + serviceDefinition);
         return true;
     } else {
-        log("Failed to deregister service. HTTP response code: " + std::to_string(httpResponseCode));
+        log("Failed to deregister service. HTTP response code: " + std::to_string(response.statusCode));
         return false;
     }
 }
 
-bool ArrowheadManager::queryAndDeregisterAllServices(const std::string& serviceDefinition, const std::string& serviceUri) {
-    std::string queryUrl = this->serviceRegistryURL + "/mgmt?direction=ASC&sort_field=id";
-    std::string responsePayload;
+bool ArrowheadManager::deregisterMatchingServices() {
+    const auto& providedServices = config_.getProvidedServices();
     
-    int httpResponseCode = httpGet(queryUrl, responsePayload);
+    if (providedServices.empty()) {
+        log("No provided services to deregister.");
+        return true;
+    }
+    
+    bool allSuccess = true;
+    for (const auto& service : providedServices) {
+        if (!queryAndDeregisterAllServices(service.definition, service.uri)) {
+            allSuccess = false;
+        }
+    }
+    return allSuccess;
+}
+
+bool ArrowheadManager::queryAndDeregisterAllServices(
+    const std::string& serviceDefinition, 
+    const std::string& serviceUri) {
+    
+    const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    
+    HttpResponse response = httpClient_.get(
+        serviceRegistry.protocol,
+        serviceRegistry.host,
+        serviceRegistry.port,
+        serviceRegistry.path + "/mgmt",
+        "direction=ASC&sort_field=id");
+    
     bool ret = true;
     
-    if (httpResponseCode == 200) {
+    if (response.statusCode == 200) {
         log("De-registering " + serviceDefinition);
         
         try {
-            json responseDoc = json::parse(responsePayload);
+            json responseDoc = json::parse(response.body);
             
             if (!responseDoc.contains("data") || !responseDoc["data"].is_array()) {
                 log("Invalid response format");
@@ -631,7 +408,6 @@ bool ArrowheadManager::queryAndDeregisterAllServices(const std::string& serviceD
                 }
                 
                 // Check if the current service matches the specified service definition and URI
-                // Case-insensitive comparison would be better but requires additional functions
                 if (ah_ServiceDefinition == serviceDefinition && ah_ServiceUri == serviceUri) {
                     ret = false;
                     
@@ -649,62 +425,62 @@ bool ArrowheadManager::queryAndDeregisterAllServices(const std::string& serviceD
             return false;
         }
     } else {
-        log("Failed to query services. HTTP response code: " + std::to_string(httpResponseCode));
+        log("Failed to query services. HTTP response code: " + std::to_string(response.statusCode));
     }
     
     return ret;
 }
 
-bool ArrowheadManager::deregisterSystem(const std::string& systemName, const std::string& address, int port) {
-    std::string deregistrationUrl = this->serviceRegistryURL + "/unregister-system";
-    deregistrationUrl += "?system_name=" + systemName;
-    deregistrationUrl += "&address=" + address;
-    deregistrationUrl += "&port=" + std::to_string(port);
+bool ArrowheadManager::deregisterSystem(
+    const std::string& systemName, 
+    const std::string& address, 
+    int port) {
+    
+    const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    
+    // Construct the query string
+    std::string query = "system_name=" + systemName +
+                        "&address=" + address +
+                        "&port=" + std::to_string(port);
     
     log("Attempting to deregister system: " + systemName + " at " + address + ":" + std::to_string(port));
     
-    std::string responseBody;
-    int httpResponseCode = httpDelete(deregistrationUrl, responseBody);
+    HttpResponse response = httpClient_.del(
+        serviceRegistry.protocol,
+        serviceRegistry.host,
+        serviceRegistry.port,
+        serviceRegistry.path + "/unregister-system",
+        query);
     
-    if (httpResponseCode == 200) {
+    if (response.statusCode == 200) {
         log("System deregistered successfully.");
         return true;
     } else {
-        log("Failed to deregister system. HTTP response code: " + std::to_string(httpResponseCode));
-        log(responseBody);
+        log("Failed to deregister system. HTTP response code: " + std::to_string(response.statusCode));
+        log(response.body);
         return false;
     }
 }
 
 bool ArrowheadManager::queryAndDeregisterAllSystems() {
-    std::string queryUrl = this->systemRegistryURL + "/mgmt/systems";
-    std::string responsePayload;
+    const auto& systemRegistry = config_.getCoreSystems().systemRegistry;
+    const auto& system = config_.getSystem();
     
     log("Querying all systems...");
-
-    log("SYSTEM QUERY:" + queryUrl);
-
-    // {
-    //     std::ostringstream oss;
-    //     oss << req; // boost::beast::http::request supports operator<<
-    //     log("Outgoing HTTP Request:\n" + oss.str());
-    // }
-
-    // // ===== LOG THE FULL RESPONSE =====
-    // {
-    //     std::ostringstream oss;
-    //     oss << res; // boost::beast::http::response supports operator<<
-    //     log("Incoming HTTP Response:\n" + oss.str());
-    // }
     
-    int httpResponseCode = httpGet(queryUrl, responsePayload);
+    HttpResponse response = httpClient_.get(
+        systemRegistry.protocol,
+        systemRegistry.host,
+        systemRegistry.port,
+        systemRegistry.path + "/mgmt/systems");
+    
     bool ret = true;
     
-    if (httpResponseCode == 200) {
+    if (response.statusCode == 200) {
         log("Query successful. Processing systems for deregistration...");
         
         try {
-            json responseDoc = json::parse(responsePayload);
+            json responseDoc = json::parse(response.body);
             
             if (!responseDoc.contains("data") || !responseDoc["data"].is_array()) {
                 log("Invalid response format");
@@ -718,18 +494,18 @@ bool ArrowheadManager::queryAndDeregisterAllSystems() {
                     continue;
                 }
                 
-                json system = systemObj["system"];
-                std::string queriedSystemName = system["systemName"];
+                json systemJson = systemObj["system"];
+                std::string queriedSystemName = systemJson["systemName"];
                 
-                if (queriedSystemName == this->systemName) {
-                    std::string address = system["address"];
-                    int port = system["port"];
+                if (queriedSystemName == system.name) {
+                    std::string address = systemJson["address"];
+                    int port = systemJson["port"];
                     
                     // Deregister the system using its address, port, and name
-                    if (deregisterSystem(this->systemName, address, port)) {
-                        log("Deregistered system: " + this->systemName + " at " + address + ":" + std::to_string(port));
+                    if (deregisterSystem(system.name, address, port)) {
+                        log("Deregistered system: " + system.name + " at " + address + ":" + std::to_string(port));
                     } else {
-                        log("Failed to deregister system: " + this->systemName + " at " + address + ":" + std::to_string(port));
+                        log("Failed to deregister system: " + system.name + " at " + address + ":" + std::to_string(port));
                         ret = false;
                     }
                 }
@@ -739,7 +515,7 @@ bool ArrowheadManager::queryAndDeregisterAllSystems() {
             return false;
         }
     } else {
-        log("Failed to query systems. HTTP response code: " + std::to_string(httpResponseCode));
+        log("Failed to query systems. HTTP response code: " + std::to_string(response.statusCode));
         ret = false;
     }
     
@@ -761,8 +537,10 @@ json ArrowheadManager::createServiceQueryJson(const std::string& serviceDefiniti
     return query;
 }
 
-bool ArrowheadManager::parseServiceQueryResponse(const std::string& response, 
-                                               const std::string& serviceDefinition) {
+bool ArrowheadManager::parseServiceQueryResponse(
+    const std::string& response, 
+    const std::string& serviceDefinition) {
+    
     try {
         json responseJson = json::parse(response);
         
@@ -805,10 +583,10 @@ bool ArrowheadManager::parseServiceQueryResponse(const std::string& response,
                 log(info.serviceUri);
             }
             
-            this->discovered_services.push_back(info);
+            discoveredServices_.push_back(info);
         }
         
-        return !this->discovered_services.empty();
+        return !discoveredServices_.empty();
     } catch (const std::exception& e) {
         log("Error parsing service query response: " + std::string(e.what()));
         return false;
@@ -816,34 +594,40 @@ bool ArrowheadManager::parseServiceQueryResponse(const std::string& response,
 }
 
 bool ArrowheadManager::discoverServices() {
-    if (this->consumed_services.empty()) {
+    const auto& consumedServices = config_.getConsumedServices();
+    const auto& serviceRegistry = config_.getCoreSystems().serviceRegistry;
+    
+    if (consumedServices.empty()) {
         log("No consumed services to discover.");
         return true; // Assuming discovering no services is not an error.
     }
     
-    this->discovered_services.clear();
+    discoveredServices_.clear();
     bool ret = true;
     
-    for (const auto& service : this->consumed_services) {
+    for (const auto& service : consumedServices) {
         log("Asking for: " + service + " Service");
         
-        std::string serviceRegistryQueryURL = this->serviceRegistryURL + "/query";
         json queryJson = createServiceQueryJson(service);
         std::string queryPayload = queryJson.dump();
-        std::string responsePayload;
         
-        int httpResponseCode = httpPost(serviceRegistryQueryURL, queryPayload, responsePayload);
+        HttpResponse response = httpClient_.post(
+            serviceRegistry.protocol,
+            serviceRegistry.host,
+            serviceRegistry.port,
+            serviceRegistry.path + "/query",
+            queryPayload);
         
-        if (httpResponseCode == 200) {
-            log("200 Got Payload: " + responsePayload);
+        if (response.statusCode == 200) {
+            log("200 Got Payload: " + response.body);
             
-            if (!parseServiceQueryResponse(responsePayload, service)) {
+            if (!parseServiceQueryResponse(response.body, service)) {
                 log("Failed to parse or no services found");
                 ret = false;
             }
         } else {
-            log("Error during service discovery: " + std::to_string(httpResponseCode));
-            log(responsePayload);
+            log("Error during service discovery: " + std::to_string(response.statusCode));
+            log(response.body);
             ret = false;
         }
     }
@@ -852,23 +636,26 @@ bool ArrowheadManager::discoverServices() {
 }
 
 std::string ArrowheadManager::consumeService(const std::string& serviceName) {
-    for (const auto& service : this->discovered_services) {
+    for (const auto& service : discoveredServices_) {
         if (service.serviceName == serviceName) {
             // Construct the service URL
             std::string serviceUrl = "http://" + service.providerAddress + ":" + 
-                                    std::to_string(service.providerPort) + service.serviceUri;
+                                   std::to_string(service.providerPort) + service.serviceUri;
             
-            std::string payload;
-            int httpResponseCode = httpGet(serviceUrl, payload);
+            HttpResponse response = httpClient_.get(
+                "http",  // Assuming HTTP protocol
+                service.providerAddress, 
+                service.providerPort, 
+                service.serviceUri);
             
-            if (httpResponseCode == 200) {
-                log("Service response: " + payload);
-                return payload; // Return the successful payload
+            if (response.statusCode == 200) {
+                log("Service response: " + response.body);
+                return response.body; // Return the successful payload
             } else {
                 log("Failed to consume " + serviceName + " service, HTTP response code: " + 
-                    std::to_string(httpResponseCode));
+                    std::to_string(response.statusCode));
                 log("Attempting to re-discover...");
-                this->servicesDiscovered = false;
+                servicesDiscovered_ = false;
                 return ""; // Service consumption failed
             }
         }
@@ -878,28 +665,29 @@ std::string ArrowheadManager::consumeService(const std::string& serviceName) {
     return ""; // Service name not matched
 }
 
-bool ArrowheadManager::consumeService(const std::string& serviceName, 
-                                     const std::string& argumentName, 
-                                     int argumentValue) {
-    for (const auto& service : this->discovered_services) {
+bool ArrowheadManager::consumeService(
+    const std::string& serviceName, 
+    const std::string& argumentName, 
+    int argumentValue) {
+    
+    for (const auto& service : discoveredServices_) {
         if (service.serviceName == serviceName) {
-            // Construct the service URL with the argument name and value as query parameters
-            std::string serviceUrl = "http://" + service.providerAddress + ":" + 
-                                    std::to_string(service.providerPort) + service.serviceUri + 
-                                    "?" + argumentName + "=" + std::to_string(argumentValue);
+            // Construct the query string
+            std::string query = argumentName + "=" + std::to_string(argumentValue);
             
-            log(serviceUrl);
-            std::string payload;
-            int httpResponseCode = httpGet(serviceUrl, payload);
+            HttpResponse response = httpClient_.get(
+                "http",  // Assuming HTTP protocol
+                service.providerAddress, 
+                service.providerPort, 
+                service.serviceUri,
+                query);
             
-            log(payload);
-            
-            if (httpResponseCode == 200) {
-                log("Service response: " + payload);
+            if (response.statusCode == 200) {
+                log("Service response: " + response.body);
                 
                 try {
                     // Parse the JSON response
-                    json doc = json::parse(payload);
+                    json doc = json::parse(response.body);
                     
                     if (doc.contains("responseVal")) {
                         std::string response = doc["responseVal"];
@@ -918,9 +706,9 @@ bool ArrowheadManager::consumeService(const std::string& serviceName,
                 return false; // No valid responseVal found
             } else {
                 log("Failed to consume " + serviceName + " service, HTTP response code: " + 
-                    std::to_string(httpResponseCode));
-                log(payload);
-                this->servicesDiscovered = false;
+                    std::to_string(response.statusCode));
+                log(response.body);
+                servicesDiscovered_ = false;
                 return false; // Service consumption failed
             }
         }
@@ -929,3 +717,9 @@ bool ArrowheadManager::consumeService(const std::string& serviceName,
     log("Service not found: " + serviceName);
     return false; // Service name not matched
 }
+
+void ArrowheadManager::log(const std::string& message) {
+    std::cout << message << std::endl;
+}
+
+} // namespace arrowhead
